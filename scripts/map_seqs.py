@@ -44,7 +44,7 @@ for query in SeqIO.parse(to_parse, parse_type):
     blastsearch: str = (f"blastn {params} -query temp.fasta -db {blastdb}"
                         "> temp.txt")
     sp.run(blastsearch, shell=True)
-    parse = SearchIO.read('temp.txt', 'blast-xml')
+    parse = SearchIO.read('temp.xml', 'blast-xml')
     if not len(parse):
         continue
     sequences = np.append(sequences, str(query.seq))

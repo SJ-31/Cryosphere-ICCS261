@@ -1,0 +1,9 @@
+#Measure	Value
+Filename	A031-DNA-L1-n1-TGAAACCT-Joutsen-16S_BI-run20180126B_S31_L001_R1_001.fastq.gz
+File type	Conventional base calls
+Encoding	Sanger / Illumina 1.9
+Total Sequences	222344
+Total Bases	72.4 Mbp
+Sequences flagged as poor quality	0
+Sequence length	326
+%GC	53
