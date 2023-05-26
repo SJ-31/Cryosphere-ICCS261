@@ -1,3 +1,8 @@
 data/*
 temp.fasta
 testzone/*
+moving_pics/*
+sys/jelly_data/*
+sys/filtered/*
+sys/results/*
+sys/casava-18-single-end-demultiplexed/*
