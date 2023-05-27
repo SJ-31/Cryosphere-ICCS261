@@ -1,0 +1,8 @@
+sample-id	absolute-filepath
+sample-1	$PWD/jelly_data/ERR762396.fastq.gz
+sample-2	$PWD/jelly_data/ERR762397.fastq.gz
+sample-3	$PWD/jelly_data/ERR762398.fastq.gz
+sample-4	$PWD/jelly_data/ERR762399.fastq.gz
+sample-5	$PWD/jelly_data/ERR762400.fastq.gz
+sample-6	$PWD/jelly_data/ERR762401.fastq.gz
+sample-7	$PWD/jelly_data/ERR762402.fastq.gz
