@@ -11,3 +11,4 @@ sys/casava-18-single-end-demultiplexed/*
 work/*
 .nextflow/*
 .nextflow.log*
+*/artifacts/*

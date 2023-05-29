@@ -18,8 +18,11 @@ process FASTQC {
 }
 
 process EXTRACT_FASTQC {
+    publishDir "$outdir", mode: 'copy', pattern: "*fasta"
+
     input:
     path(fastqc)
+    val(outdir)
     //
     output:
     path("*Adapter_Content*"), emit: aContent
