@@ -9,7 +9,7 @@ process RAXML-RAPID-BOOTSTRAP {
     val(model)
     //
     output:
-    tuple val(name), val('RAxML'), path("*Unrooted*)
+    tuple val(name), val('RAxML'), path("*Unrooted*")
     //
     script:
     """
