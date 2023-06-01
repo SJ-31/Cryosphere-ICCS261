@@ -3,12 +3,12 @@ process FASTTREE {
     publishDir "$outdir", mode: 'symlink'
 
     input:
-    tuple val(name) path(aligned_sequence)
+    tuple val(name), path(aligned_sequence)
     val(outdir)
     //
     output:
     tuple val(name), val('FastTree'), path("*Unrooted*")
-    //
+    // Phylogeny[Unrooted]
     script:
     """
     qiime phylogeny fasttree \

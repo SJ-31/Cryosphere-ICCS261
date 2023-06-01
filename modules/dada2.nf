@@ -1,4 +1,4 @@
-process DADA2 {
+process DADA2_PAIRED {
     publishDir "$outdir", mode: 'symlink', pattern: "*-denoised.qza"
     conda '/home/sc31/Bio_SDD/miniconda3/envs/qiime2-2023.2'
 
@@ -9,9 +9,11 @@ process DADA2 {
     //
     output:
     tuple val(name), path("*Table*"), emit: table
+    // FeatureTable[Frequency]
     path("*Stats*"), emit: stats
+    // SampleData[DADA2Stats]
     path("*Seqs*"), emit: seqs
-    //
+    // FeatureData[Sequence]
     script:
     if  (mode == 'paired' )
         """

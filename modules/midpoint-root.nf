@@ -1,4 +1,4 @@
-process MIDPOINT-ROOT {
+process MIDPOINTROOT {
     publishDir "$outdir"
     conda '/home/sc31/Bio_SDD/miniconda3/envs/qiime2-2023.2'
 
@@ -8,12 +8,12 @@ process MIDPOINT-ROOT {
     //
     output:
     tuple val(name), path("*Rooted*")
-    //
+    // Phylogeny[Rooted]
     script:
     """
     qiime phylogeny midpoint-root \
-        -i-tree $unrooted_tree \
-        -o-rooted-tree ${name}-${builder}_RootedTree.qza
+        --i-tree $unrooted_tree \
+        --o-rooted-tree ${name}-${builder}_RootedTree.qza
     """
     //
 }

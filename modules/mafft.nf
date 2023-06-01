@@ -8,7 +8,7 @@ process MAFFT {
     //
     output:
     tuple val(name), path("*Aligned*")
-    //
+    // FeatureData[AlignedSequence]
     script:
     """
     qiime alignment mafft \
