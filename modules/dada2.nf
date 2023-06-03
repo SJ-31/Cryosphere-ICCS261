@@ -1,10 +1,9 @@
-process DADA2_PAIRED {
-    publishDir "$outdir", mode: 'symlink', pattern: "*-denoised.qza"
+process DADA2 {
+    publishDir "$outdir", mode: "copy", pattern: "*.qza"
     conda '/home/sc31/Bio_SDD/miniconda3/envs/qiime2-2023.2'
 
     input:
-    tuple val(name), path(artifact)
-    val(mode)
+    tuple val(name), val(type), val(trunc), path(artifact)
     val(outdir)
     //
     output:
@@ -15,18 +14,24 @@ process DADA2_PAIRED {
     path("*Seqs*"), emit: seqs
     // FeatureData[Sequence]
     script:
-    if  (mode == 'paired' )
+    if  ( type == "paired" )
         """
         qiime dada2 denoise-paired \
-        --i-demultiplexed-seqs  \
-        --p-trim-left \
-        --p-trim -right \
-        --p-trunc-len-r \
-        --p-trunc-len-f \
+        --i-demultiplexed-seqs $artifact \
+        --p-trunc-len-r $trunc \
+        --p-trunc-len-f $trunc \
         --o-table ${name}-denoisedSeqs.qza \
         --o-repesentative-sequences ${name}-denoisedTable.qza \
         --o-denoising-stats ${name}-denosiedStats.qza
         """
-    else if ( mode == 'pyro')
+    else if ( type == "single")
+        """
+        qiime dada2 denoise-single \
+        --i-demultiplexed-seqs $artifact \
+        --p-trunc-len $trunc \
+        --o-table ${name}-denoisedSeqs.qza \
+        --o-repesentative-sequences ${name}-denoisedTable.qza \
+        --o-denoising-stats ${name}-denoisedStats.qza
+        """
     //
 }

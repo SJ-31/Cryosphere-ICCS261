@@ -3,7 +3,9 @@
 /*
  * Module imports
  */
-
+include { DADA2 } from './modules/dada2'
+include { CUTADAPT } from './modules/cutadapt'
+include { QSCORE } from './modules/qscore'
 include { VSEARCH_CLUSTER_DENOVO } from './modules/vsearch_cluster_de-novo.nf'
 include { CLASSIFY_CONSENSUS_BLAST } from './modules/classify-consensus-blast.nf'
 include { CLASSIFY_CONSENSUS_VSEARCH } from './modules/classify-consensus-vsearch.nf'
@@ -17,24 +19,31 @@ include { MIDPOINTROOT } from './modules/midpoint-root.nf'
  * Main workflow
  */
 
-Channel.fromPath(params.denoisedTable)
-    .map{ it -> ["$params.name", it ] }.set{ denoisedTable_ch }
-Channel.fromPath(params.denoisedSeqs)
-    .set { denoisedSeqs_ch }
-
+Channel.fromPath('samplelist.tsv')
+    .splitCsv(header: true, sep: "\t" )
+    .map { it -> [ it.Name, it.Type, it.Trimto, it.Path ] }
+    .set { samples_ch }
 
 workflow {
-    VSEARCH_CLUSTER_DENOVO(denoisedTable_ch, denoisedSeqs_ch,
+    // Clean fastq
+    CUTADAPT(samples_ch, params.outdir)
+        .set { trimmed_ch }
+    QSCORE(trimmed_ch, params.outdirClean)
+        .set { quality_ch }
+    DADA2(quality_ch.seqs, params.outdirClean)
+        .set { dd_ch }
+    VSEARCH_CLUSTER_DENOVO(dd_ch.table, dd_ch.seqs,
     params.outdirOTU, "0.99")
         .set { otu_ch }
-    //
+
+    // Classify taxonomy
     CLASSIFY_CONSENSUS_BLAST(otu_ch.seqs, params.blast_args,
     params.refSeqs, params.refIDs, params.outdirClassified)
         .set { blast_ch }
     CLASSIFY_CONSENSUS_VSEARCH(otu_ch.seqs, params.vsearch_args, params.refSeqs, params.refIDs, params.outdirClassified)
         .set { vsearch_ch }
 
-    // Phylogeny
+    // Construct phylogeny
     MAFFT(otu_ch.seqs, params.outdirAligned)
         .set { aligned_ch }
     FASTTREE(aligned_ch, params.outdirTrees)

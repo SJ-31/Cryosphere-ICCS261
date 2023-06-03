@@ -1,6 +1,7 @@
 data/*
 *.qza
 *.qzv
+dag*
 temp.fasta
 testzone/*
 moving_pics/*
