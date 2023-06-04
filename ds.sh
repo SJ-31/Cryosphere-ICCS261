@@ -1,1 +1,1 @@
-nextflow run main.nf -resume -profile ds -with-dag workflow.mmd
+nextflow run main.nf -resume -with-dag workflow.mmd

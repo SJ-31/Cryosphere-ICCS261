@@ -1,4 +1,5 @@
 process DADA2 {
+    tag "Trimming $name"
     publishDir "$outdir", mode: "copy", pattern: "*.qza"
     conda '/home/sc31/Bio_SDD/miniconda3/envs/qiime2-2023.2'
 
@@ -20,17 +21,17 @@ process DADA2 {
         --i-demultiplexed-seqs $artifact \
         --p-trunc-len-r $trunc \
         --p-trunc-len-f $trunc \
-        --o-table ${name}-denoisedSeqs.qza \
-        --o-repesentative-sequences ${name}-denoisedTable.qza \
-        --o-denoising-stats ${name}-denosiedStats.qza
+        --o-table ${name}-denoisedTable.qza \
+        --o-representative-sequences ${name}-denoisedSeqs.qza \
+        --o-denoising-stats ${name}-denoised.qza
         """
     else if ( type == "single")
         """
         qiime dada2 denoise-single \
         --i-demultiplexed-seqs $artifact \
         --p-trunc-len $trunc \
-        --o-table ${name}-denoisedSeqs.qza \
-        --o-repesentative-sequences ${name}-denoisedTable.qza \
+        --o-table ${name}-denoisedTable.qza \
+        --o-representative-sequences ${name}-denoisedSeqs.qza \
         --o-denoising-stats ${name}-denoisedStats.qza
         """
     //

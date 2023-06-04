@@ -1,4 +1,5 @@
 process CUTADAPT {
+    tag "Cleaning $name"
     conda '/home/sc31/Bio_SDD/miniconda3/envs/qiime2-2023.2'
     publishDir "$outdir", mode: "copy"
 
@@ -11,6 +12,8 @@ process CUTADAPT {
     // Either SampleData[SequencesWithQuality]
     // or SampleData[PairedEndSequencesWithQuality]
     script:
+    artifact = "$projectDir/$artifact_path"
+
     if ( type == "paired" ) {
     """
     qiime cutadapt trim-paired \
@@ -21,7 +24,7 @@ process CUTADAPT {
     else if (type == "single") {
     """
     qiime cutadapt trim-single \
-        --i-demultiplexed-sequences $artifact
+        --i-demultiplexed-sequences $artifact \
         --o-trimmed-sequences ${name}-Trimmed.qza
     """
     }

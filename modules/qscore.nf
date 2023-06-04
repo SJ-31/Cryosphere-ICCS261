@@ -16,7 +16,7 @@ process QSCORE {
     qiime quality-filter q-score  \
         --i-demux $artifact  \
         --p-min-quality 4 \
-        --p-quality-window 0.75 \
+        --p-quality-window 3 \
         --o-filtered-sequences ${name}-QSeqs.qza \
         --o-filter-stats ${name}-QStats.qza
     """
