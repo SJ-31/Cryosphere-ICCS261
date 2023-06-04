@@ -2,6 +2,7 @@ process VSEARCH_CLUSTER_DENOVO {
     tag "Clustering $name, Table: $table, Seqs: $seqs"
     publishDir "$outdir", pattern: "*otu*", mode: "copy"
     conda '/home/sc31/Bio_SDD/miniconda3/envs/qiime2-2023.2'
+    memory '2 GB'
 
     input:
     tuple val(name), path(table)

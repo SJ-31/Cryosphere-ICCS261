@@ -1,6 +1,7 @@
 process CLASSIFY_CONSENSUS_BLAST {
     conda '/home/sc31/Bio_SDD/miniconda3/envs/qiime2-2023.2'
     publishDir "$outdir", mode: "copy"
+    memory '2 GB'
 
     input:
     tuple val(name), path(otus)

@@ -5,5 +5,5 @@ Greenland_cryoconite	paired	240	data/raw/cryoconiteFQ.qza
 Devon_ice_cap	paired	250	data/raw/devonFQ.qza
 Muztagh_Ata	single	300	data/raw/muztaghFQ.qza
 Greenland_fresh_snow	paired	240	data/raw/freshsnowFQ.qza
-Jelly	single	460	data/raw/jelly.qza
+Jelly	paired	250	data/raw/jelly.qza
 

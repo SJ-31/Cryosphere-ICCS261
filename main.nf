@@ -7,6 +7,8 @@ include { DADA2 } from './modules/dada2'
 include { CUTADAPT } from './modules/cutadapt'
 include { QSCORE } from './modules/qscore'
 include { MERGE } from './modules/merge'
+include { BETADIVERSITY } from './modules/betadiv.nf'
+include { ALPHADIVERSITY } from './modules/alphadiv.nf'
 include { VSEARCH_CLUSTER_DENOVO } from './modules/vsearch_cluster_de-novo.nf'
 include { CLASSIFY_CONSENSUS_BLAST } from './modules/classify-consensus-blast.nf'
 include { CLASSIFY_CONSENSUS_VSEARCH } from './modules/classify-consensus-vsearch.nf'
@@ -20,7 +22,7 @@ include { MIDPOINTROOT } from './modules/midpoint-root.nf'
  * Main workflow
  */
 
-Channel.fromPath('samplelist.tsv')
+Channel.fromPath('samples.tsv')
     .splitCsv(header: true, sep: "\t" )
     .map { it -> [ it.Name, it.Type, it.Trimto, it.Path ] }
     .set { samples_ch }
@@ -42,13 +44,23 @@ workflow {
     VSEARCH_CLUSTER_DENOVO(dd_ch.table.mix(merged_ch.table), dd_ch.seqs.mix(merged_ch.seqs),
     params.outdirOTU, "0.99")
         .set { otu_ch }
+    otu_ch.view()
+    // otu_ch.branch {
+
+    // }
 
     // Classify taxonomy
-    CLASSIFY_CONSENSUS_BLAST(otu_ch.seqs, params.blast_args,
-    params.refSeqs, params.refIDs, params.outdirClassified)
-        .set { blast_ch }
-    CLASSIFY_CONSENSUS_VSEARCH(otu_ch.seqs, params.vsearch_args, params.refSeqs, params.refIDs, params.outdirClassified)
-        .set { vsearch_ch }
+    // CLASSIFY_CONSENSUS_BLAST(otu_ch.seqs, params.blast_args,
+    // params.refSeqs, params.refIDs, params.outdirClassified)
+    //     .set { blast_ch }
+    // CLASSIFY_CONSENSUS_VSEARCH(otu_ch.seqs, params.vsearch_args, params.refSeqs, params.refIDs, params.outdirClassified)
+    //     .set { vsearch_ch } // Not done yet
+    // Merge afterwards or else you die
+
+    // BETADIVERSITY()
+    // ALPHADIVERSITY()
+    // BETAPHYLO()
+    // ALPHAPHYLO()
 
     // // Construct phylogeny
     // MAFFT(otu_ch.seqs, params.outdirAligned)
