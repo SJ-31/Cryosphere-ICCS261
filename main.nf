@@ -1,5 +1,3 @@
-// raw_ch = Channel.fromPath(params.raw_dir)
-
 /*
  * Module imports
  */
@@ -13,8 +11,8 @@ include { VSEARCH_CLUSTER_DENOVO } from './modules/vsearch_cluster_de-novo.nf'
 include { CLASSIFY_CONSENSUS_BLAST } from './modules/classify-consensus-blast.nf'
 include { CLASSIFY_CONSENSUS_VSEARCH } from './modules/classify-consensus-vsearch.nf'
 include { MAFFT } from './modules/mafft.nf'
-include { RAXML_RAPID_BOOTSTRAP } from './modules/raxml_bootstrap.nf'
-include { IQTREE_ULTRAFAST_BOOTSTRAP } from './modules/iqtree_ultrafast_bootstrap.nf'
+include { RAXML_RAPID_BOOTSTRAP; RAXML } from './modules/raxml.nf'
+include { IQTREE_ULTRAFAST_BOOTSTRAP; IQTREE } from './modules/iqtree.nf'
 include { FASTTREE } from './modules/fasttree.nf'
 include { MIDPOINTROOT } from './modules/midpoint-root.nf'
 
@@ -22,60 +20,80 @@ include { MIDPOINTROOT } from './modules/midpoint-root.nf'
  * Main workflow
  */
 
+def separate_merge = branchCriteria {
+    merged: it[0] =~ /Merged/
+    extra: it[0] =~ /$params.ignore/
+    the_rest: !(it[0] =~ /Merged/)
+}
+
+iqtree_ch = Channel.empty()
+raxml_ch = Channel.empty()
+
 Channel.fromPath('samples.tsv')
     .splitCsv(header: true, sep: "\t" )
     .map { it -> [ it.Name, it.Type, it.Trimto, it.Path ] }
     .set { samples_ch }
 
 workflow {
-    // Clean fastq
+    // Clean and merge fastq
     CUTADAPT(samples_ch, params.outdirClean)
         .set { trimmed_ch }
     QSCORE(trimmed_ch, params.outdirClean)
         .set { quality_ch }
     DADA2(quality_ch.seqs, params.outdirClean)
         .set { dd_ch }
-    dd_ch.table.flatten().filter{ !(it =~ /$params.ignore/) }.filter( ~/.*qza/ )
-        .collect().map { it -> ['Merged', it ]}.set { mfreqs }
-    dd_ch.seqs.flatten().filter{ !(it =~ /$params.ignore/) }.filter( ~/.*qza/ )
-        .collect().map { it -> ['Merged', it ]}.set { mseqs }
+    dd_ch.table.flatten().filter{ !(it =~ /$params.ignore/) }.filter( ~/.*qza/ ).collect().map { it -> ['Merged', it ]}
+        .set { mfreqs }
+    dd_ch.seqs.flatten().filter{ !(it =~ /$params.ignore/) }.filter( ~/.*qza/ ).collect().map { it -> ['Merged', it ]}
+        .set { mseqs }
     MERGE(mfreqs, mseqs, params.outdirClean)
         .set { merged_ch }
-    VSEARCH_CLUSTER_DENOVO(dd_ch.table.mix(merged_ch.table), dd_ch.seqs.mix(merged_ch.seqs),
-    params.outdirOTU, "0.99")
-        .set { otu_ch }
-    otu_ch.view()
-    // otu_ch.branch {
-
-    // }
+    VSEARCH_CLUSTER_DENOVO(dd_ch.table.mix(merged_ch.table), dd_ch.seqs.mix(merged_ch.seqs),params.outdirOTU, "0.99")
+        .set { all_otu }
+    all_otu.seqs.branch(separate_merge)
+        .set { otu_seqs }
 
     // Classify taxonomy
     // CLASSIFY_CONSENSUS_BLAST(otu_ch.seqs, params.blast_args,
     // params.refSeqs, params.refIDs, params.outdirClassified)
     //     .set { blast_ch }
-    // CLASSIFY_CONSENSUS_VSEARCH(otu_ch.seqs, params.vsearch_args, params.refSeqs, params.refIDs, params.outdirClassified)
+    // CLASSIFY_CONSENSUS_VSEARCH(otu_seqs.other, params.vsearch_args, params.refSeqs, params.refIDs, params.outdirClassified)
     //     .set { vsearch_ch } // Not done yet
-    // Merge afterwards or else you die
 
-    // BETADIVERSITY()
-    // ALPHADIVERSITY()
-    // BETAPHYLO()
-    // ALPHAPHYLO()
-
-    // // Construct phylogeny
-    // MAFFT(otu_ch.seqs, params.outdirAligned)
-    //     .set { aligned_ch }
-    // FASTTREE(aligned_ch, params.outdirTrees)
-    //     .set { fasttree_ch }
+    // Construct phylogeny
+    MAFFT(otu_seqs.merged.mix(otu_seqs.extra).mix(otu_seqs.the_rest),
+    params.outdirAligned).branch(separate_merge)
+        .set { aligned_ch }
+    FASTTREE(aligned_ch.merged.mix(aligned_ch.the_rest), params.outdirTrees)
+        .set { fasttree_ch }
     // RAXML_RAPID_BOOTSTRAP(aligned_ch, params.outdirTrees,
     // '1000', 'GTRGAMMA')
-    //     .set { raxml_ch }
+    // RAXML(aligned_ch.the_rest, params.outdirTrees, 'GTRGAMMA')
+    //     .tap { raxml_ch }
     // IQTREE_ULTRAFAST_BOOTSTRAP(aligned_ch, params.outdirTrees,
-    // '1000')
+    // '100')
     //     .set { iqtree_ch }
-    // MIDPOINTROOT(iqtree_ch.mix(raxml_ch).mix(fasttree_ch),
-    // params.outdirRooted)
-    //     .set { rooted_ch }
+    // IQTREE(aligned_ch.the_rest, params.outdirTrees)
+    //     .tap { iqtree_ch }
+    MIDPOINTROOT(iqtree_ch.mix(raxml_ch).mix(fasttree_ch),
+    params.outdirRooted).branch {
+        fasttree: it[1] =~ /FastTree/
+        iqtree: it[1] =~ /IQTREE/
+        raxml: it[1] =~ /RAxML/
+        all: true
+    }.set { rooted_ch }
+    all_otu.freqs.join(rooted_ch.fasttree)
+        .branch(separate_merge)
+        .set { freqs_trees }
+        // todo: You could change the tree to base the phylogeny on...
+
+    // Compute diversity
+    BETADIVERSITY(freqs_trees.merged.mix(freqs_trees.extra)
+    .mix(freqs_trees.the_rest), params.beta, params.outdirDiversity)
+        .set { distance_matrices }
+    ALPHADIVERSITY(freqs_trees.the_rest.mix(freqs_trees.extra),
+    params.alpha, params.outdirDiversity)
+
 }
 
 

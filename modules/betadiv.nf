@@ -3,30 +3,31 @@ process BETADIVERSITY {
     conda '/home/sc31/Bio_SDD/miniconda3/envs/qiime2-2023.2'
 
     input:
-    tuple val(name), path(table)
-    tuple val(name), path(phylogeny)
-    map(metrics)
+    tuple (val(name), path(table), val(builder),
+        path(phylogeny))
+    val(metrics)
     val(outdir)
     //
     output:
-    tuple val(name), path("-*B_*.qza")
+    tuple val(name), path("*-B*.qza")
     // DistanceMatrix
-    script:
-    for ( metric in metrics["non-phylogenetic"] ){
-    """
-    qiime diversity beta \
-        --i-table $table \
-        --p-metric $metric \
-        --o-distance-matrix ${name}-B_${metric}.qza
-    """
-    }
-    for ( metric in metrics["phylogenetic"] ){
-    """
-    qiime diversity beta-phylogenetic \
-        --i-table $table \
-        --i-phylogeny $phylogeny \
-        --o-distance-matrix ${name}-BPhylo_${metric}.qza
-    """
-    }
-    //
+    shell:
+    '''
+    for metric in !{metrics["non-phylogenetic"].join(" ")}
+        do
+        qiime diversity beta \
+            --i-table !{table} \
+            --p-metric $metric \
+            --o-distance-matrix !{name}-B_${metric}.qza
+        done
+    for metric in !{metrics["phylogenetic"].join(" ")}
+        do
+        qiime diversity beta-phylogenetic \
+            --i-table !{table} \
+            --p-metric $metric \
+            --i-phylogeny !{phylogeny} \
+            --o-distance-matrix !{name}-BPhylo_${metric}.qza
+        done
+    '''
+    // You can't parallelize unifrac or else it dies
 }

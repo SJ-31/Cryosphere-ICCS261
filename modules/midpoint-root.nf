@@ -1,5 +1,5 @@
 process MIDPOINTROOT {
-    publishDir "$outdir"
+    publishDir "$outdir", mode: 'copy'
     conda '/home/sc31/Bio_SDD/miniconda3/envs/qiime2-2023.2'
 
     input:
@@ -7,7 +7,7 @@ process MIDPOINTROOT {
     val(outdir)
     //
     output:
-    tuple val(name), path("*Rooted*")
+    tuple val(name), val(builder), path("*Rooted*")
     // Phylogeny[Rooted]
     script:
     """

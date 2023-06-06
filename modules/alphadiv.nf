@@ -3,30 +3,31 @@ process ALPHADIVERSITY {
     conda '/home/sc31/Bio_SDD/miniconda3/envs/qiime2-2023.2'
 
     input:
-    tuple val(name), path(table)
-    tuple val(name), path(phylogeny)
-    map(metrics)
+    tuple (val(name), path(table), val(builder),
+        path(phylogeny))
+    val(metrics)
     val(outdir)
     //
     output:
-    tuple val(name), path("-*A_*.qza")
+    tuple val(name), path("*-A_*.qza")
     // DistanceMatrix
-    script:
-    for ( metric in metrics["non-phylogenetic"] ){
-    """
-    qiime diversity alpha \
-        --i-table $table \
-        --p-metric $metric \
-        --o-distance-matrix ${name}-A_${metric}.qza
-    """
-    }
-    for ( metric in metrics["phylogenetic"] ){
-    """
-    qiime diversity alpha-phylogenetic \
-        --i-table $table \
-        --i-phylogeny $phylogeny \
-        --o-distance-matrix ${name}-APhylo_${metric}.qza
-    """
-    }
+    shell:
+    '''
+    for metric in !{metrics["non-phylogenetic"].join(" ")}
+        do
+        qiime diversity alpha \
+            --i-table !{table} \
+            --p-metric $metric \
+            --o-alpha-diversity !{name}-A_${metric}.qza
+        done
+    for metric in !{metrics["phylogenetic"].join(" ")}
+        do
+        qiime diversity alpha-phylogenetic \
+            --i-table !{table} \
+            --p-metric $metric \
+            --i-phylogeny !{phylogeny} \
+            --o-alpha-diversity !{name}-APhylo_${metric}.qza
+        done
+    '''
     //
 }
