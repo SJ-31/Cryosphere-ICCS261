@@ -1,23 +1,143 @@
 sample-id	Location
 #q2:types	categorical
-BrH1	Barrow Alaska high
-BrH2	Barrow Alaska high
-BrH3	Barrow Alaska high
-BrH4	Barrow Alaska high
-BrH5	Barrow Alaska high
-BrH6	Barrow Alaska high
-BrH7	Barrow Alaska high
-BrH8	Barrow Alaska high
-BrL1	Barrow Alaska low
-BrL2	Barrow Alaska low
-BrL3	Barrow Alaska low
-BrL4	Barrow Alaska low
-BrL5	Barrow Alaska low
-BrL6	Barrow Alaska low
-BrL7	Barrow Alaska low
-BrL8	Barrow Alaska low
-MzA1	Muztagh Ata
-MzA2	Muztagh Ata
-GCr1	Greenland cryoconite
-DvN1	Devon ice cap
-GrF1	Greenland fresh snow
+BrL1	Barrow Alaska Low
+BrL2	Barrow Alaska Low
+BrL3	Barrow Alaska Low
+BrL4	Barrow Alaska Low
+BrL5	Barrow Alaska Low
+BrL6	Barrow Alaska Low
+BrL7	Barrow Alaska Low
+BrL8	Barrow Alaska Low
+BrL9	Barrow Alaska Low
+BrL10	Barrow Alaska Low
+BrH1	Barrow Alaska High
+BrH2	Barrow Alaska High
+BrH3	Barrow Alaska High
+BrH4	Barrow Alaska High
+BrH5	Barrow Alaska High
+BrH6	Barrow Alaska High
+BrH7	Barrow Alaska High
+BrH8	Barrow Alaska High
+BrH9	Barrow Alaska High
+BrH10	Barrow Alaska High
+RhZ1	Rhizosphere
+RhZ2	Rhizosphere
+RhZ3	Rhizosphere
+RhZ4	Rhizosphere
+RhZ5	Rhizosphere
+RhZ6	Rhizosphere
+RhZ7	Rhizosphere
+RhZ8	Rhizosphere
+RhZ9	Rhizosphere
+RhZ10	Rhizosphere
+CaS1	Catriona snow
+CaS2	Catriona snow
+CaS3	Catriona snow
+CaS4	Catriona snow
+CaS5	Catriona snow
+CaS6	Catriona snow
+CaS7	Catriona snow
+CaS8	Catriona snow
+CaS9	Catriona snow
+CaS10	Catriona snow
+EaI1	East Iceland glaciers
+EaI2	East Iceland glaciers
+EaI3	East Iceland glaciers
+EaI4	East Iceland glaciers
+EaI5	East Iceland glaciers
+EaI6	East Iceland glaciers
+EaI7	East Iceland glaciers
+EaI8	East Iceland glaciers
+EaI9	East Iceland glaciers
+EaI10	East Iceland glaciers
+BhM1	Bihor mountain caves
+BhM2	Bihor mountain caves
+BhM3	Bihor mountain caves
+BhM4	Bihor mountain caves
+BhM5	Bihor mountain caves
+BhM6	Bihor mountain caves
+BhM7	Bihor mountain caves
+BhM8	Bihor mountain caves
+BhM9	Bihor mountain caves
+BhM10	Bihor mountain caves
+Yak1	Central Yakutia 
+Yak2	Central Yakutia 
+Yak3	Central Yakutia 
+Yak4	Central Yakutia 
+Yak5	Central Yakutia 
+Yak6	Central Yakutia 
+Yak7	Central Yakutia 
+Yak8	Central Yakutia 
+Yak9	Central Yakutia 
+Yak10	Central Yakutia 
+CrC1	Cryoconite
+CrC2	Cryoconite
+CrC3	Cryoconite
+CrC4	Cryoconite
+CrC5	Cryoconite
+CrC6	Cryoconite
+CrC7	Cryoconite
+CrC8	Cryoconite
+CrC9	Cryoconite
+CrC10	Cryoconite
+GrI1	Greenland ice
+GrI2	Greenland ice
+GrI3	Greenland ice
+GrI4	Greenland ice
+GrI5	Greenland ice
+GrI6	Greenland ice
+GrI7	Greenland ice
+GrI8	Greenland ice
+GrI9	Greenland ice
+GrI10	Greenland ice
+HaS1	Hailstone
+HaS2	Hailstone
+HaS3	Hailstone
+HaS4	Hailstone
+HaS5	Hailstone
+HaS6	Hailstone
+HaS7	Hailstone
+HaS8	Hailstone
+HaS9	Hailstone
+HaS10	Hailstone
+SvG1	Sverdrup glacier
+SvG2	Sverdrup glacier
+SvG3	Sverdrup glacier
+SvG4	Sverdrup glacier
+SvG5	Sverdrup glacier
+SvG6	Sverdrup glacier
+SvG7	Sverdrup glacier
+SvG8	Sverdrup glacier
+SvG9	Sverdrup glacier
+SvG10	Sverdrup glacier
+ViS1	Villum station
+ViS2	Villum station
+ViS3	Villum station
+ViS4	Villum station
+ViS5	Villum station
+ViS6	Villum station
+ViS7	Villum station
+ViS8	Villum station
+ViS9	Villum station
+ViS10	Villum station
+StR1	Storglaciaren
+StR2	Storglaciaren
+StR3	Storglaciaren
+StR4	Storglaciaren
+StR5	Storglaciaren
+StR6	Storglaciaren
+StR7	Storglaciaren
+StR8	Storglaciaren
+StR9	Storglaciaren
+StR10	Storglaciaren
+NzS1	Newzealand soil
+NzS2	Newzealand soil
+NzS3	Newzealand soil
+NzS4	Newzealand soil
+NzS5	Newzealand soil
+NzS6	Newzealand soil
+NzS7	Newzealand soil
+NzS8	Newzealand soil
+NzS9	Newzealand soil
+NzS10	Newzealand soil
+

@@ -8,6 +8,7 @@ include { MERGE } from './modules/merge'
 include { BETADIVERSITY } from './modules/betadiv.nf'
 include { ALPHADIVERSITY } from './modules/alphadiv.nf'
 include { VSEARCH_CLUSTER_DENOVO } from './modules/vsearch_cluster_de-novo.nf'
+include { PCOA } from './modules/pcoa'
 include { CLASSIFY_CONSENSUS_BLAST } from './modules/classify-consensus-blast.nf'
 include { CLASSIFY_CONSENSUS_VSEARCH } from './modules/classify-consensus-vsearch.nf'
 include { MAFFT } from './modules/mafft.nf'
@@ -54,9 +55,9 @@ workflow {
         .set { otu_seqs }
 
     // Classify taxonomy
-    // CLASSIFY_CONSENSUS_BLAST(otu_ch.seqs, params.blast_args,
-    // params.refSeqs, params.refIDs, params.outdirClassified)
-    //     .set { blast_ch }
+    CLASSIFY_CONSENSUS_BLAST(otu_seqs.the_rest, params.blast_args,
+    params.refSeqs, params.refIDs, params.outdirClassified)
+        .set { blast_ch }
     // CLASSIFY_CONSENSUS_VSEARCH(otu_seqs.other, params.vsearch_args, params.refSeqs, params.refIDs, params.outdirClassified)
     //     .set { vsearch_ch } // Not done yet
 
@@ -64,17 +65,18 @@ workflow {
     MAFFT(otu_seqs.merged.mix(otu_seqs.extra).mix(otu_seqs.the_rest),
     params.outdirAligned).branch(separate_merge)
         .set { aligned_ch }
-    FASTTREE(aligned_ch.merged.mix(aligned_ch.the_rest), params.outdirTrees)
+    FASTTREE(aligned_ch.merged.mix(aligned_ch.the_rest).mix(aligned_ch.extra),
+    params.outdirTrees)
         .set { fasttree_ch }
     // RAXML_RAPID_BOOTSTRAP(aligned_ch, params.outdirTrees,
     // '1000', 'GTRGAMMA')
-    // RAXML(aligned_ch.the_rest, params.outdirTrees, 'GTRGAMMA')
-    //     .tap { raxml_ch }
+    RAXML(aligned_ch.the_rest, params.outdirTrees, 'GTRGAMMA')
+        .tap { raxml_ch }
     // IQTREE_ULTRAFAST_BOOTSTRAP(aligned_ch, params.outdirTrees,
     // '100')
     //     .set { iqtree_ch }
-    // IQTREE(aligned_ch.the_rest, params.outdirTrees)
-    //     .tap { iqtree_ch }
+    IQTREE(aligned_ch.the_rest, params.outdirTrees)
+        .tap { iqtree_ch }
     MIDPOINTROOT(iqtree_ch.mix(raxml_ch).mix(fasttree_ch),
     params.outdirRooted).branch {
         fasttree: it[1] =~ /FastTree/
@@ -88,11 +90,16 @@ workflow {
         // todo: You could change the tree to base the phylogeny on...
 
     // Compute diversity
-    BETADIVERSITY(freqs_trees.merged.mix(freqs_trees.extra)
-    .mix(freqs_trees.the_rest), params.beta, params.outdirDiversity)
+    BETADIVERSITY(freqs_trees.merged.mix(freqs_trees.extra), params.beta, params.outdirDiversity)
+        .transpose()
         .set { distance_matrices }
     ALPHADIVERSITY(freqs_trees.the_rest.mix(freqs_trees.extra),
     params.alpha, params.outdirDiversity)
+
+    // Analyze diversity
+    PCOA(distance_matrices, params.pcoa_dimensions,
+    params.outdirAnalysis)
+
 
 }
 
