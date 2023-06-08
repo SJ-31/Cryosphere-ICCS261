@@ -4,19 +4,20 @@ process PCOA  {
 
     input:
     tuple val(name), path(matrix)
-    val(dimensions)
+    each dimensions
     val(outdir)
     //
     output:
-    tuple val(name), path("${name}-PCOA_${metric}.qza")
+    tuple (val(name),
+    path("${name}-PCOA-${dimensions}D_${metric}.qza"))
     //
     script:
     metric = matrix.baseName.replaceAll(/.*-/, '')
     """
     qiime diversity pcoa \
         --i-distance-matrix $matrix \
-        --p-number-of-dimensions $params.pcoa_dimensions \
-        --o-pcoa ${name}-PCOA_${metric}.qza
+        --p-number-of-dimensions $dimensions \
+        --o-pcoa ${name}-PCOA-${dimensions}D_${metric}.qza
     """
     //
 }
