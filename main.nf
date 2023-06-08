@@ -70,13 +70,13 @@ workflow {
         .set { fasttree_ch }
     // RAXML_RAPID_BOOTSTRAP(aligned_ch, params.outdirTrees,
     // '1000', 'GTRGAMMA')
-    RAXML(aligned_ch.the_rest, params.outdirTrees, 'GTRGAMMA')
-        .tap { raxml_ch }
+    // RAXML(aligned_ch.the_rest, params.outdirTrees, 'GTRGAMMA')
+    //     .tap { raxml_ch }
     // IQTREE_ULTRAFAST_BOOTSTRAP(aligned_ch, params.outdirTrees,
     // '100')
     //     .set { iqtree_ch }
-    IQTREE(aligned_ch.the_rest, params.outdirTrees)
-        .tap { iqtree_ch }
+    // IQTREE(aligned_ch.the_rest, params.outdirTrees)
+    //     .tap { iqtree_ch }
     MIDPOINTROOT(iqtree_ch.mix(raxml_ch).mix(fasttree_ch),
     params.outdirRooted).branch {
         fasttree: it[1] =~ /FastTree/
@@ -99,8 +99,4 @@ workflow {
     // Analyze diversity
     PCOA(distance_matrices, params.pcoa_dimensions,
     params.outdirAnalysis)
-
-
 }
-
-

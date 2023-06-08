@@ -1,175 +1,153 @@
 flowchart TD
     p0((Channel.empty))
-    p1(( ))
-    p2((Channel.empty))
-    p3(( ))
-    p4((Channel.fromPath))
-    p5([splitCsv])
-    p6([map])
+    p1((Channel.empty))
+    p2((Channel.fromPath))
+    p3([splitCsv])
+    p4([map])
+    p5(( ))
+    p6[CUTADAPT]
     p7(( ))
-    p8[CUTADAPT]
+    p8[QSCORE]
     p9(( ))
-    p10[QSCORE]
-    p11(( ))
+    p10(( ))
+    p11[DADA2]
     p12(( ))
-    p13[DADA2]
-    p14(( ))
-    p15([flatten])
-    p16([filter])
-    p17([filter])
-    p18([collect])
-    p19([map])
-    p20([flatten])
-    p21([filter])
-    p22([filter])
-    p23([collect])
-    p24([map])
-    p25(( ))
-    p26[MERGE]
-    p27([mix])
-    p28([mix])
-    p29(( ))
-    p30(( ))
-    p31[VSEARCH_CLUSTER_DENOVO]
-    p32([branch])
+    p13([flatten])
+    p14([filter])
+    p15([filter])
+    p16([collect])
+    p17([map])
+    p18([flatten])
+    p19([filter])
+    p20([filter])
+    p21([collect])
+    p22([map])
+    p23(( ))
+    p24[MERGE]
+    p25([mix])
+    p26([mix])
+    p27(( ))
+    p28(( ))
+    p29[VSEARCH_CLUSTER_DENOVO]
+    p30([branch])
+    p31(( ))
+    p32(( ))
     p33(( ))
     p34(( ))
-    p35(( ))
+    p35[CLASSIFY_CONSENSUS_BLAST]
     p36(( ))
-    p37[CLASSIFY_CONSENSUS_BLAST]
-    p38(( ))
-    p39(( ))
-    p40([mix])
-    p41([mix])
-    p42(( ))
-    p43[MAFFT]
-    p44([branch])
-    p45([mix])
-    p46([mix])
-    p47(( ))
-    p48[FASTTREE]
+    p37(( ))
+    p38([mix])
+    p39([mix])
+    p40(( ))
+    p41[MAFFT]
+    p42([branch])
+    p43([mix])
+    p44([mix])
+    p45(( ))
+    p46[FASTTREE]
+    p47([mix])
+    p48([mix])
     p49(( ))
-    p50(( ))
-    p51[RAXML]
-    p52([tap])
+    p50[MIDPOINTROOT]
+    p51([branch])
+    p52(( ))
     p53(( ))
     p54(( ))
-    p55[IQTREE]
-    p56([tap])
-    p57(( ))
-    p58([mix])
-    p59([mix])
-    p60(( ))
-    p61[MIDPOINTROOT]
-    p62([branch])
+    p55([join])
+    p56([branch])
+    p57([mix])
+    p58(( ))
+    p59(( ))
+    p60[BETADIVERSITY]
+    p61([transpose])
+    p62([mix])
     p63(( ))
     p64(( ))
-    p65(( ))
-    p66([join])
-    p67([branch])
-    p68([mix])
-    p69(( ))
+    p65[ALPHADIVERSITY]
+    p66(( ))
+    p67(( ))
+    p68(( ))
+    p69[PCOA]
     p70(( ))
-    p71[BETADIVERSITY]
-    p72([transpose])
-    p73([mix])
-    p74(( ))
-    p75(( ))
-    p76[ALPHADIVERSITY]
-    p77(( ))
-    p78(( ))
-    p79(( ))
-    p80[PCOA]
-    p81(( ))
-    p0 -->|iqtree_ch| p1
-    p2 -->|raxml_ch| p3
-    p4 --> p5
-    p5 --> p6
-    p6 -->|samples_ch| p8
+    p0 -->|iqtree_ch| p47
+    p1 -->|raxml_ch| p47
+    p2 --> p3
+    p3 --> p4
+    p4 -->|samples_ch| p6
+    p5 -->|outdir| p6
+    p6 --> p8
     p7 -->|outdir| p8
-    p8 --> p10
-    p9 -->|outdir| p10
-    p10 --> p13
-    p10 --> p11
-    p12 -->|outdir| p13
-    p13 --> p15
+    p8 --> p11
+    p8 --> p9
+    p10 -->|outdir| p11
+    p11 --> p13
+    p11 --> p12
+    p11 --> p18
     p13 --> p14
-    p13 --> p20
+    p14 --> p15
     p15 --> p16
     p16 --> p17
-    p17 --> p18
+    p17 -->|mfreqs| p24
     p18 --> p19
-    p19 -->|mfreqs| p26
+    p19 --> p20
     p20 --> p21
     p21 --> p22
-    p22 --> p23
-    p23 --> p24
-    p24 -->|mseqs| p26
-    p25 -->|outdir| p26
-    p26 --> p28
-    p26 --> p27
-    p13 --> p27
-    p27 --> p31
-    p13 --> p28
-    p28 --> p31
-    p29 -->|outdir| p31
-    p30 -->|percent_identity| p31
-    p31 --> p66
-    p31 --> p32
-    p32 --> p37
-    p32 --> p40
-    p32 --> p40
-    p33 -->|args| p37
-    p34 -->|refSeqs| p37
-    p35 -->|refIDs| p37
-    p36 -->|outdir| p37
-    p37 --> p39
-    p37 --> p38
-    p40 --> p41
-    p32 --> p41
-    p41 --> p43
-    p42 -->|outdir| p43
+    p22 -->|mseqs| p24
+    p23 -->|outdir| p24
+    p24 --> p26
+    p24 --> p25
+    p11 --> p25
+    p25 --> p29
+    p11 --> p26
+    p26 --> p29
+    p27 -->|outdir| p29
+    p28 -->|percent_identity| p29
+    p29 --> p55
+    p29 --> p30
+    p30 --> p38
+    p30 --> p38
+    p30 --> p35
+    p31 -->|args| p35
+    p32 -->|refSeqs| p35
+    p33 -->|refIDs| p35
+    p34 -->|outdir| p35
+    p35 --> p37
+    p35 --> p36
+    p38 --> p39
+    p30 --> p39
+    p39 --> p41
+    p40 -->|outdir| p41
+    p41 --> p42
+    p42 --> p44
+    p42 --> p43
+    p42 --> p43
     p43 --> p44
-    p44 --> p45
     p44 --> p46
-    p44 --> p45
-    p45 --> p46
+    p45 -->|outdir| p46
     p46 --> p48
-    p47 -->|outdir| p48
-    p48 --> p59
-    p44 --> p51
-    p49 -->|outdir| p51
-    p50 -->|model| p51
+    p47 --> p48
+    p48 --> p50
+    p49 -->|outdir| p50
+    p50 --> p51
+    p51 --> p54
+    p51 --> p55
+    p51 --> p53
     p51 --> p52
-    p52 --> p53
-    p52 -->|raxml_ch| p58
-    p44 --> p55
-    p54 -->|outdir| p55
     p55 --> p56
-    p56 -->|iqtree_ch| p58
     p56 --> p57
-    p58 --> p59
-    p59 --> p61
-    p60 -->|outdir| p61
-    p61 --> p62
+    p56 --> p57
+    p56 --> p62
+    p57 --> p60
+    p58 -->|metrics| p60
+    p59 -->|outdir| p60
+    p60 --> p61
+    p61 -->|distance_matrices| p69
+    p56 --> p62
     p62 --> p65
-    p62 --> p64
-    p62 --> p63
-    p62 --> p66
-    p66 --> p67
-    p67 --> p68
-    p67 --> p73
-    p67 --> p68
-    p68 --> p71
-    p69 -->|metrics| p71
-    p70 -->|outdir| p71
-    p71 --> p72
-    p72 -->|distance_matrices| p80
-    p67 --> p73
-    p73 --> p76
-    p74 -->|metrics| p76
-    p75 -->|outdir| p76
-    p76 --> p77
-    p78 -->|dimensions| p80
-    p79 -->|outdir| p80
-    p80 --> p81
+    p63 -->|metrics| p65
+    p64 -->|outdir| p65
+    p65 --> p66
+    p67 -->|dimensions| p69
+    p68 -->|outdir| p69
+    p69 --> p70
