@@ -75,8 +75,8 @@ workflow {
     // IQTREE_ULTRAFAST_BOOTSTRAP(aligned_ch, params.outdirTrees,
     // '100')
     //     .set { iqtree_ch }
-    // IQTREE(aligned_ch.the_rest, params.outdirTrees)
-    //     .tap { iqtree_ch }
+    IQTREE(aligned_ch.the_rest, params.outdirTrees)
+        .tap { iqtree_ch }
     MIDPOINTROOT(iqtree_ch.mix(raxml_ch).mix(fasttree_ch),
     params.outdirRooted).branch {
         fasttree: it[1] =~ /FastTree/
@@ -93,7 +93,7 @@ workflow {
     BETADIVERSITY(freqs_trees.merged.mix(freqs_trees.extra), params.beta, params.outdirDiversity)
         .transpose()
         .set { distance_matrices }
-    ALPHADIVERSITY(freqs_trees.the_rest.mix(freqs_trees.extra),
+    ALPHADIVERSITY(freqs_trees.merged.mix(freqs_trees.extra),
     params.alpha, params.outdirDiversity)
 
     // Analyze diversity
