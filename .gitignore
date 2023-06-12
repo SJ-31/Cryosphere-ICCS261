@@ -8,7 +8,7 @@ testzone/*
 moving_pics/*
 sys/jelly_data/*
 sys/filtered/*
-sys/results/*
+results/*
 sys/casava-18-single-end-demultiplexed/*
 work/*
 .nextflow/*

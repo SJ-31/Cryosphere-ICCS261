@@ -3,15 +3,16 @@ process ALPHADIVERSITY {
     conda '/home/sc31/Bio_SDD/miniconda3/envs/qiime2-2023.2'
 
     input:
-    tuple (val(name), path(table), val(builder),
-        path(phylogeny))
+    tuple val(name), val(builder), path(phylogeny)
     val(metrics)
+    val(otus)
     val(outdir)
     //
     output:
     tuple val(name), path("*-A_*.qza")
     // DistanceMatrix
     shell:
+    table = "${otus}/${name}-otuFreqs.qza"
     '''
     for metric in !{metrics["non-phylogenetic"].join(" ")}
         do

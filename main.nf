@@ -29,13 +29,20 @@ def separate_merge = branchCriteria {
 
 iqtree_ch = Channel.empty()
 raxml_ch = Channel.empty()
+fasttree_ch = Channel.empty()
+
+def get_channel(path) {
+    return Channel
+            .fromPath(path)
+            .map{ it -> [ it.baseName.replaceAll(/-.*/, ''), it ] }
+}
 
 Channel.fromPath('samples.tsv')
     .splitCsv(header: true, sep: "\t" )
     .map { it -> [ it.Name, it.Type, it.Trimto, it.Path ] }
     .set { samples_ch }
 
-workflow {
+workflow clean_cluster {
     // Clean and merge fastq
     CUTADAPT(samples_ch, params.outdirClean)
         .set { trimmed_ch }
@@ -50,51 +57,57 @@ workflow {
     MERGE(mfreqs, mseqs, params.outdirClean)
         .set { merged_ch }
     VSEARCH_CLUSTER_DENOVO(dd_ch.table.mix(merged_ch.table), dd_ch.seqs.mix(merged_ch.seqs),params.outdirOTU, "0.99")
-        .set { all_otu }
-    all_otu.seqs.branch(separate_merge)
-        .set { otu_seqs }
+}
 
-    // Classify taxonomy
-    CLASSIFY_CONSENSUS_BLAST(otu_seqs.the_rest, params.blast_args,
-    params.refSeqs, params.refIDs, params.outdirClassified)
-        .set { blast_ch }
-    // CLASSIFY_CONSENSUS_VSEARCH(otu_seqs.other, params.vsearch_args, params.refSeqs, params.refIDs, params.outdirClassified)
-    //     .set { vsearch_ch } // Not done yet
-
-    // Construct phylogeny
-    MAFFT(otu_seqs.merged.mix(otu_seqs.extra).mix(otu_seqs.the_rest),
-    params.outdirAligned).branch(separate_merge)
-        .set { aligned_ch }
-    FASTTREE(aligned_ch.merged.mix(aligned_ch.the_rest).mix(aligned_ch.extra),
-    params.outdirTrees)
-        .set { fasttree_ch }
-    // RAXML_RAPID_BOOTSTRAP(aligned_ch, params.outdirTrees,
-    // '1000', 'GTRGAMMA')
-    // RAXML(aligned_ch.the_rest, params.outdirTrees, 'GTRGAMMA')
-    //     .tap { raxml_ch }
-    // IQTREE_ULTRAFAST_BOOTSTRAP(aligned_ch, params.outdirTrees,
-    // '100')
-    //     .set { iqtree_ch }
-    IQTREE(aligned_ch.the_rest, params.outdirTrees)
-        .tap { iqtree_ch }
-    MIDPOINTROOT(iqtree_ch.mix(raxml_ch).mix(fasttree_ch),
-    params.outdirRooted).branch {
-        fasttree: it[1] =~ /FastTree/
-        iqtree: it[1] =~ /IQTREE/
-        raxml: it[1] =~ /RAxML/
-        all: true
-    }.set { rooted_ch }
-    all_otu.freqs.join(rooted_ch.fasttree)
+workflow phylogeny {
+    get_channel("$params.outdirOTU/*Seqs*")
+        .tap { all_seq_ch }
         .branch(separate_merge)
-        .set { freqs_trees }
-        // todo: You could change the tree to base the phylogeny on...
+        .set { seq_ch }
+    if ( params.blast ) {
+        CLASSIFY_CONSENSUS_BLAST(seq_ch.the_rest.mix(seq_ch.extra),
+        params.blast_args, params.refSeqs, params.refIDs,
+        params.outdirClassified)
+    }
+    if ( params.vsearch ) {
+        CLASSIFY_CONSENSUS_VSEARCH(seq_ch.the_rest.mix(seq_ch.extra),
+        params.vsearch_args, params.refSeqs, params.refIDs,
+        params.outdirClassified)
+    }
+    if ( params.phylogeny ) {
+    // Construct phylogeny
+        MAFFT(all_seq_ch, params.outdirAligned)
+            .set { aligned_ch }
+        if ( params.fasttree ) {
+            FASTTREE(aligned_ch, params.outdirTrees)
+                .tap { fasttree_ch }
+        }
+        if ( params.raxml ) {
+            RAXML(aligned_ch, params.outdirTrees, 'GTRGAMMA')
+                .tap { raxml_ch }
+        }
+        if ( params.iqtree ) {
+            IQTREE(aligned_ch, params.outdirTrees)
+                .tap { iqtree_ch }
+        }
+        MIDPOINTROOT(iqtree_ch.mix(raxml_ch).mix(fasttree_ch),
+        params.outdirRooted)
+    }
+}
 
+workflow diversity {
+    tree_ch = Channel.empty()
+    get_channel("$params.outdirRooted/*")
+        .map { it -> [ it[0], (it =~ /.*-(.*)_.*/)[0][1], it[1] ]}
+        // Extract the tree builder automatically
+        .tap { all_ch }.branch(separate_merge)
+        .set { tree_ch }
     // Compute diversity
-    BETADIVERSITY(freqs_trees.merged.mix(freqs_trees.extra), params.beta, params.outdirDiversity)
+    BETADIVERSITY(tree_ch.merged.mix(tree_ch.extra), params.beta, params.outdirOTU, params.outdirDiversity)
         .transpose()
         .set { distance_matrices }
-    ALPHADIVERSITY(freqs_trees.merged.mix(freqs_trees.extra),
-    params.alpha, params.outdirDiversity)
+    ALPHADIVERSITY(tree_ch.the_rest.mix(tree_ch.extra),
+    params.alpha, params.outdirOTU, params.outdirDiversity)
 
     // Analyze diversity
     PCOA(distance_matrices, params.pcoa_dimensions,
