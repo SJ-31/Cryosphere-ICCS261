@@ -2,65 +2,44 @@ from qiime2 import Metadata, Artifact
 from skbio.tree import TreeNode
 import pandas as pd
 metadata = pd.read_csv('./ds_metadata.tsv', sep='\t')
-
-# Evenness
-pielou_e = Artifact.load('results/7-Diversity/Merged/Merged-A_pielou_e.qza').view(Metadata).to_dataframe().merge(metadata, left_index=True, right_on='sample-id')
-shannon = Artifact.load('results/7-Diversity/Merged/Merged-A_shannon.qza').view(Metadata).to_dataframe().merge(metadata, left_index=True, right_on='sample-id')
-simpson = Artifact.load('results/7-Diversity/Merged/Merged-A_simpson.qza').view(Metadata).to_dataframe().merge(metadata, left_index=True, right_on='sample-id')
+id_key: dict = {
+    "BhM": "Bihor mountains", "BrH": "Barrow mountain high",
+    "BrL": "Barrow mountain low", "CaS": "Catriona snow",
+    "CeY": "Central Yakutia", "GrI": "Greenland ice",
+    "EaI": "East Iceland glaciers", "CrC": "Cryoconite",
+    "HaS": "Hailstone", "NzS": "New Zealand soil",
+    "SvG": "Sverdrup glacier", "StR": "Storglaciaren",
+    "ViS": "Villum station"
+}
 
 # Principle component analyses
 pcoaBC_2D = Artifact.load('results/8-Analysis/Merged/Merged-PCOA-2D_B_braycurtis.qza').view(Metadata).to_dataframe().merge(metadata, left_index=True, right_on='sample-id')
 pcoaJ_2D = Artifact.load('results/8-Analysis/Merged/Merged-PCOA-2D_B_jaccard.qza').view(Metadata).to_dataframe().merge(metadata, left_index=True, right_on='sample-id')
-pcoaUU_2D = Artifact.load('results/8-Analysis/Merged/Merged-PCOA-2D_BPhylo_unweighted_unifrac.qza').view(Metadata).to_dataframe().merge(metadata, left_index=True, right_on='sample-id')
-pcoaNU_2D = Artifact.load('results/8-Analysis/Merged/Merged-PCOA-2D_BPhylo_weighted_normalized_unifrac.qza').view(Metadata).to_dataframe().merge(metadata, left_index=True, right_on='sample-id')
-pcoaWU_2D = Artifact.load('results/8-Analysis/Merged/Merged-PCOA-2D_BPhylo_weighted_unifrac.qza').view(Metadata).to_dataframe().merge(metadata, left_index=True, right_on='sample-id')
+pcoaUU_2D = Artifact.load('results/8-Analysis/Merged/Merged-PCOA-2D_BPhylo_unweighted_unifrac_FastTree.qza').view(Metadata).to_dataframe().merge(metadata, left_index=True, right_on='sample-id')
+pcoaNU_2D = Artifact.load('results/8-Analysis/Merged/Merged-PCOA-2D_BPhylo_weighted_normalized_unifrac_FastTree.qza').view(Metadata).to_dataframe().merge(metadata, left_index=True, right_on='sample-id')
+pcoaWU_2D = Artifact.load('results/8-Analysis/Merged/Merged-PCOA-2D_BPhylo_weighted_unifrac_FastTree.qza').view(Metadata).to_dataframe().merge(metadata, left_index=True, right_on='sample-id')
 pcoaBC_3D = Artifact.load('results/8-Analysis/Merged/Merged-PCOA-3D_B_braycurtis.qza').view(Metadata).to_dataframe().merge(metadata, left_index=True, right_on='sample-id')
 pcoaJ_3D = Artifact.load('results/8-Analysis/Merged/Merged-PCOA-3D_B_jaccard.qza').view(Metadata).to_dataframe().merge(metadata, left_index=True, right_on='sample-id')
-pcoaUU_3D = Artifact.load('results/8-Analysis/Merged/Merged-PCOA-3D_BPhylo_unweighted_unifrac.qza').view(Metadata).to_dataframe().merge(metadata, left_index=True, right_on='sample-id')
-pcoaNU_3D = Artifact.load('results/8-Analysis/Merged/Merged-PCOA-3D_BPhylo_weighted_normalized_unifrac.qza').view(Metadata).to_dataframe().merge(metadata, left_index=True, right_on='sample-id')
-pcoaWU_3D = Artifact.load('results/8-Analysis/Merged/Merged-PCOA-3D_BPhylo_weighted_unifrac.qza').view(Metadata).to_dataframe().merge(metadata, left_index=True, right_on='sample-id')
+pcoaUU_3D = Artifact.load('results/8-Analysis/Merged/Merged-PCOA-3D_BPhylo_unweighted_unifrac_FastTree.qza').view(Metadata).to_dataframe().merge(metadata, left_index=True, right_on='sample-id')
+pcoaNU_3D = Artifact.load('results/8-Analysis/Merged/Merged-PCOA-3D_BPhylo_weighted_normalized_unifrac_FastTree.qza').view(Metadata).to_dataframe().merge(metadata, left_index=True, right_on='sample-id')
+pcoaWU_3D = Artifact.load('results/8-Analysis/Merged/Merged-PCOA-3D_BPhylo_weighted_unifrac_FastTree.qza').view(Metadata).to_dataframe().merge(metadata, left_index=True, right_on='sample-id')
 
 # Taxonomy
 #   BLAST
-BhM_blast = Artifact.load('./results/3-Classified/BhM-BLAST_All.qza').view(Metadata).to_dataframe()
-BhM_blast_top = Artifact.load('./results/3-Classified/BhM-BLAST_TopHits.qza').view(Metadata).to_dataframe()
-BrH_blast = Artifact.load('./results/3-Classified/BrH-BLAST_All.qza').view(Metadata).to_dataframe()
-BrH_blast_top = Artifact.load('./results/3-Classified/BrH-BLAST_TopHits.qza').view(Metadata).to_dataframe()
-BrL_blast = Artifact.load('./results/3-Classified/BrL-BLAST_All.qza').view(Metadata).to_dataframe()
-BrL_blast_top = Artifact.load('./results/3-Classified/BrL-BLAST_TopHits.qza').view(Metadata).to_dataframe()
-CaS_blast = Artifact.load('./results/3-Classified/CaS-BLAST_All.qza').view(Metadata).to_dataframe()
-Cas_blast_top = Artifact.load('./results/3-Classified/CaS-BLAST_TopHits.qza').view(Metadata).to_dataframe()
-CeY_blast = Artifact.load('./results/3-Classified/CeY-BLAST_All.qza').view(Metadata).to_dataframe()
-CeY_blast_top = Artifact.load('./results/3-Classified/CeY-BLAST_TopHits.qza').view(Metadata).to_dataframe()
-CrC_blast = Artifact.load('./results/3-Classified/CrC-BLAST_All.qza').view(Metadata).to_dataframe()
-CrC_blast_top = Artifact.load('./results/3-Classified/CrC-BLAST_TopHits.qza').view(Metadata).to_dataframe()
-EaI_blast = Artifact.load('./results/3-Classified/EaI-BLAST_All.qza').view(Metadata).to_dataframe()
-EaI_blast_top = Artifact.load('./results/3-Classified/EaI-BLAST_TopHits.qza').view(Metadata).to_dataframe()
-GrI_blast = Artifact.load('./results/3-Classified/GrI-BLAST_All.qza').view(Metadata).to_dataframe()
-GrI_blast_top = Artifact.load('./results/3-Classified/GrI-BLAST_TopHits.qza').view(Metadata).to_dataframe()
-HaS_blast = Artifact.load('./results/3-Classified/HaS-BLAST_All.qza').view(Metadata).to_dataframe()
-HaS_blast_top = Artifact.load('./results/3-Classified/HaS-BLAST_TopHits.qza').view(Metadata).to_dataframe()
-NzS_blast = Artifact.load('./results/3-Classified/NzS-BLAST_All.qza').view(Metadata).to_dataframe()
-NzS_blast_top = Artifact.load('./results/3-Classified/NzS-BLAST_TopHits.qza').view(Metadata).to_dataframe()
-StR_blast = Artifact.load('./results/3-Classified/StR-BLAST_All.qza').view(Metadata).to_dataframe()
-StR_blast_top = Artifact.load('./results/3-Classified/StR-BLAST_TopHits.qza').view(Metadata).to_dataframe()
-SvG_blast = Artifact.load('./results/3-Classified/SvG-BLAST_All.qza').view(Metadata).to_dataframe()
-SvG_blast_top = Artifact.load('./results/3-Classified/SvG-BLAST_TopHits.qza').view(Metadata).to_dataframe()
-ViS_blast = Artifact.load('./results/3-Classified/ViS-BLAST_All.qza').view(Metadata).to_dataframe()
-ViS_blast_top = Artifact.load('./results/3-Classified/ViS-BLAST_TopHits.qza').view(Metadata).to_dataframe()
+blast = {}
+for loc in id_key:
+    blast_result = f'./results/3-Classified/{loc}-BLAST_ALL.qza'
+    blast_top = f'./results/3-Classified/{loc}-BLAST_TopHits.qza'
+    blast[loc] = [Artifact.load(r).view(Metadata).to_dataframe() for r in
+                (blast_result, blast_top)]
 
 # Phylogenetic trees, imported as Newick strings
-BhM_Phy = Artifact.load('./results/6-RootedTrees/BhM-FastTree_RootedTree.qza').view(TreeNode).__str__()
-BrH_Phy = Artifact.load('./results/6-RootedTrees/BrH-FastTree_RootedTree.qza').view(TreeNode).__str__()
-BrL_Phy = Artifact.load('./results/6-RootedTrees/BrL-FastTree_RootedTree.qza').view(TreeNode).__str__()
-CaS_Phy = Artifact.load('./results/6-RootedTrees/CaS-FastTree_RootedTree.qza').view(TreeNode).__str__()
-CeY_Phy = Artifact.load('./results/6-RootedTrees/CeY-FastTree_RootedTree.qza').view(TreeNode).__str__()
-CrC_Phy = Artifact.load('./results/6-RootedTrees/CrC-FastTree_RootedTree.qza').view(TreeNode).__str__()
-EaI_Phy = Artifact.load('./results/6-RootedTrees/EaI-FastTree_RootedTree.qza').view(TreeNode).__str__()
-GrI_Phy = Artifact.load('./results/6-RootedTrees/GrI-FastTree_RootedTree.qza').view(TreeNode).__str__()
-HaS_Phy = Artifact.load('./results/6-RootedTrees/HaS-FastTree_RootedTree.qza').view(TreeNode).__str__()
-Merged_Phy = Artifact.load('./results/6-RootedTrees/Merged-FastTree_RootedTree.qza').view(TreeNode).__str__()
-NzS_Phy = Artifact.load('./results/6-RootedTrees/NzS-FastTree_RootedTree.qza').view(TreeNode).__str__()
-StR_Phy = Artifact.load('./results/6-RootedTrees/StR-FastTree_RootedTree.qza').view(TreeNode).__str__()
-SvG_Phy = Artifact.load('./results/6-RootedTrees/SvG-FastTree_RootedTree.qza').view(TreeNode).__str__()
-ViS_Phy = Artifact.load('./results/6-RootedTrees/ViS-FastTree_RootedTree.qza').view(TreeNode).__str__()
+def tree_dict(tree_type: str, ids: dict):
+    t_dict = {}
+    for loc in ids:
+        tree = f'./results/6-RootedTrees/{loc}-{tree_type}_RootedTree.qza'
+        t_dict[loc] = Artifact.load(tree).view(TreeNode).__str__()
+    return t_dict
+
+fasttree = tree_dict("FastTree", id_key)
+iqtree = tree_dict("IQTREE", id_key)

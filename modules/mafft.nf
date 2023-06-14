@@ -1,5 +1,5 @@
 process MAFFT {
-    publishDir "$outdir"
+    publishDir "$outdir", mode: 'copy'
     conda '/home/sc31/Bio_SDD/miniconda3/envs/qiime2-2023.2'
 
     input:

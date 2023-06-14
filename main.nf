@@ -60,7 +60,7 @@ workflow clean_cluster {
 }
 
 workflow phylogeny {
-    get_channel("$params.outdirOTU/*Seqs*")
+    get_channel("$params.outdirOTU/${params.target}*Seqs*")
         .tap { all_seq_ch }
         .branch(separate_merge)
         .set { seq_ch }
@@ -74,7 +74,6 @@ workflow phylogeny {
         params.vsearch_args, params.refSeqs, params.refIDs,
         params.outdirClassified)
     }
-    if ( params.phylogeny ) {
     // Construct phylogeny
         MAFFT(all_seq_ch, params.outdirAligned)
             .set { aligned_ch }
@@ -92,7 +91,6 @@ workflow phylogeny {
         }
         MIDPOINTROOT(iqtree_ch.mix(raxml_ch).mix(fasttree_ch),
         params.outdirRooted)
-    }
 }
 
 workflow diversity {
