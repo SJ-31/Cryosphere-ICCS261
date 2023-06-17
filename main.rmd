@@ -1,0 +1,103 @@
+
+```{r}
+library(ape)
+library(TreeDist)
+library(phyloseq)
+library(tidyverse)
+library(glue)
+library(qiime2R)
+id_key <- list(
+    BhM = "Bihor mountains", BrH = "Barrow mountain high",
+    BrL = "Barrow mountain low", CaS = "Catriona snow", CeY = "Central Yakutia",
+    GrI = "Greenland ice", EaI = "East Iceland glaciers", CrC = "Cryoconite",
+    HaS = "Hailstone", NzS = "New Zealand soil", SvG = "Sverdrup glacier",
+    StR = "Storglaciaren", ViS = "Villum station"
+)
+```
+
+Loop over a named list in R with the following
+```r
+for (name in names(myList)) {
+    print(name)
+    print(myList[[name]])
+}
+```
+
+```{r}
+# Import taxonomic classifications
+get_tax <- function(classifier, ids, class_dir) {
+    tax_list <- list()
+    for (id in names(ids)) {
+        artifact <- glue("{class_dir}/{id}-{classifier}_All.qza")
+        taxonomy <- read_qza(artifact)$data
+        tax_list[[id]] <- parse_taxonomy(taxonomy)
+    }
+    return(tax_list)
+}
+blast <- get_tax("BLAST", id_key, "./results/3-Classified")
+```
+
+```{r}
+# Import all trees as phylo objects
+get_trees <- function(tree_name, ids, tree_dir) {
+    tree_list <- list()
+    for (id in names(ids)) {
+        artifact <- glue("{tree_dir}/{id}-{tree_name}_RootedTree.qza")
+        tree_list[[id]] <- read_qza(artifact)$data
+    }
+    return(tree_list)
+}
+
+fasttree <- get_trees("FastTree", id_key, "./results/6-RootedTrees")
+iqtree <- get_trees("IQTREE", id_key, "./results/6-RootedTrees")
+
+known_taxon <- function(row, taxonomy) {
+    known_rank <- 7
+    while (is.na(taxonomy[row, known_rank]) && known_rank != 1) {
+        known_rank <- known_rank - 1
+    }
+    return(taxonomy[row, known_rank])
+}
+
+# Obtain the identification like this
+# lapply(1:nrow(taxonomy), known_taxon, taxonomy = taxonomy)
+
+blast$CrC$known_row <- lapply(1:nrow(blast$CrC), known_taxon, taxonomy = blast$CrC)
+```
+
+The `known_taxon` function collapses the taxonomy table into the first identification. A similar function will be used to collapse it into at least genus identifications for use with farprotax. 
+
+```{r}
+# f_tree_matrix <- CompareAll(x = iqtree, NNIDist)
+
+replace_tips <- function(tree, taxonomy_frame) {
+    # Map OTU ids to their taxonomic identifications on the tree tips
+    taxonomy_frame$known <- lapply(1:nrow(taxonomy_frame), known_taxon,
+        taxonomy = taxonomy_frame
+    )
+    tree$tip.label <- taxonomy_frame$known[tree$tip.label %in%
+        rownames(taxonomy_frame)]
+    return(tree)
+}
+```
+
+```{r}
+# Sample tree for Villum station site
+# Still need to improve separation of tip labels
+villum <- replace_tips(iqtree$ViS, blast$ViS)
+plot(villum)
+```
+
+# Importing PCOA artifacts
+
+```{r}
+beta_metrics <- list( bc = "B_braycurtis", ja = "B_jaccard",
+                    "uu": "BPhylo_unweighted_unifrac",
+                    "wn": "BPhylo_weighted_normalized_unifrac",
+                    "wu": "BPhylo_weighted_unifrac"}
+alpha_metrics: dict = {"sh": "shannon", "pi": "pielou_e",
+                    "si": "simpson", "se": "simpson_e"}
+get_data <- function() {
+}
+```
+
