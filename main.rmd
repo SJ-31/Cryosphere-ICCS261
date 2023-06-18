@@ -11,11 +11,6 @@ iqtree <- get_artifact_data(
     "./results/6-RootedTrees", id_key,
     "IQTREE_RootedTree"
 )
-
-# Sample tree for Villum station site
-# Still need to improve separation of tip labels
-villum <- replace_tips(iqtree$ViS, blast$ViS)
-plot(villum)
 ```
 
 ### Taxonomic classifications
@@ -24,7 +19,13 @@ blast <- lapply(
     get_artifact_data("./results/3-Classified", id_key, "BLAST_All"),
     parse_taxonomy
 )
+# sklearn <- lapply(
+#     get_artifact_data("./results/3-Classified", id_key, "Sklearn"),
+#     parse_taxonomy
+# )
 ```
+TODO: Which classifier was better?
+
 The `known_taxon` function collapses the taxonomy table into the first identification. A similar function will be used to collapse it into at least genus identifications for use with farprotax.
 
 ### Import frequency tables
@@ -53,4 +54,19 @@ write.csv(combined, "genus_otu_tables.csv", row.names = FALSE)
 ## Importing PCOA artifacts
 
 ```{r}
+```
+
+## Beta diversity
+```{r}
+beta <- get_artifact_data("./results/7-Diversity",
+    list(Merged = NULL),
+    extension = "",
+    metric_list = beta_metrics
+)
+pcoa2D <- get_artifact_data("./results/8-Analysis",
+    list(Merged = NULL),
+    extension = "PCOA-2D_",
+    metric_list = beta_metrics
+)
+pcoa2D_merged <- lapply(pcoa2D$Merged, metadata_merge_pcoa, metadata = metadata)
 ```

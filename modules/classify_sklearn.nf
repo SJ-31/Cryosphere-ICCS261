@@ -8,12 +8,12 @@ process CLASSIFY_SKLEARN {
     val(outdir)
     //
     output:
-    tuple val(name), path("*Freqs.qza"), emit: freqs // FeatureData[Taxonomy]
+    tuple val(name), path("*Sklearn.qza"), emit: freqs // FeatureData[Taxonomy]
     //
     script:
     """
     qiime feature-classifier classify-sklearn \
-        --i-reads $table \
+        --i-reads $otus \
         --i-classifier $classifier \
         --o-classification ${name}-Sklearn.qza
     """
