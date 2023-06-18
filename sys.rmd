@@ -61,3 +61,5 @@ known <- lapply(1:nrow(blast), genus_level, taxonomy = blast) %>%
   drop_na()
 ```
 Simply by counting the number of unidentified taxa, vsearch performs worse than blast
+
+The sample sequences were obtained from  Rhizostoma pulmo, collected 

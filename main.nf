@@ -2,9 +2,11 @@
  * Module imports
  */
 include { DADA2 } from './modules/dada2'
+include { EXPORT } from './modules/export'
 include { CUTADAPT } from './modules/cutadapt'
 include { QSCORE } from './modules/qscore'
 include { MERGE } from './modules/merge'
+include { CLASSIFY_SKLEARN } from './modules/classify_sklearn'
 include { BETADIVERSITY } from './modules/betadiv.nf'
 include { ALPHADIVERSITY } from './modules/alphadiv.nf'
 include { VSEARCH_CLUSTER_DENOVO } from './modules/vsearch_cluster_de-novo.nf'
@@ -57,6 +59,9 @@ workflow clean_cluster {
     MERGE(mfreqs, mseqs, params.outdirClean)
         .set { merged_ch }
     VSEARCH_CLUSTER_DENOVO(dd_ch.table.mix(merged_ch.table), dd_ch.seqs.mix(merged_ch.seqs),params.outdirOTU, "0.99")
+        .set { otu_ch }
+    EXPORT(otu_ch.freqs, otu_ch.seqs, params.outdirOTUExport)
+
 }
 
 workflow phylogeny {
@@ -73,6 +78,12 @@ workflow phylogeny {
         CLASSIFY_CONSENSUS_VSEARCH(seq_ch.the_rest.mix(seq_ch.extra),
         params.vsearch_args, params.refSeqs, params.refIDs,
         params.outdirClassified)
+    }
+    if ( params.sklearn ){
+        CLASSIFY_SKLEARN(seq_ch.the_rest.mix(seq_ch.extra),
+        params.classifier,
+        params.outdirClassified
+        )
     }
     // Construct phylogeny
         MAFFT(all_seq_ch, params.outdirAligned)
