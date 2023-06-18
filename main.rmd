@@ -4,12 +4,12 @@ source("./all_artifacts.r")
 ### Phylogenetic trees
 ```{r}
 fasttree <- get_artifact_data(
-  "./results/6-RootedTrees", id_key,
-  "FastTree_RootedTree"
+    "./results/6-RootedTrees", id_key,
+    "FastTree_RootedTree"
 )
 iqtree <- get_artifact_data(
-  "./results/6-RootedTrees", id_key,
-  "IQTREE_RootedTree"
+    "./results/6-RootedTrees", id_key,
+    "IQTREE_RootedTree"
 )
 
 # Sample tree for Villum station site
@@ -21,8 +21,8 @@ plot(villum)
 ### Taxonomic classifications
 ```{r}
 blast <- lapply(
-  get_artifact_data("./results/3-Classified", id_key, "BLAST_All"),
-  parse_taxonomy
+    get_artifact_data("./results/3-Classified", id_key, "BLAST_All"),
+    parse_taxonomy
 )
 ```
 The `known_taxon` function collapses the taxonomy table into the first identification. A similar function will be used to collapse it into at least genus identifications for use with farprotax.
@@ -30,12 +30,24 @@ The `known_taxon` function collapses the taxonomy table into the first identific
 ### Import frequency tables
 The frequency tables are stored in BIOM format: OTUs x sites
 ```{r}
-to_genera <- lapply(1:nrows)
 otu_freqs <- lapply(
-  get_artifact_data("./results/2-OTUs", id_key, "otuFreqs"),
-  as.data.frame
+    get_artifact_data("./results/2-OTUs", id_key, "otuFreqs"),
+    as.data.frame
 )
-to_genus_csv
+```
+
+The following snippet maps otu ids the genus-level identifications for use with the farprotax database, writing csv files for each.
+```{r}
+otu_genus <- list()
+for (id in names(id_key)) {
+    otu_genus[[id]] <- to_genus_csv(otu_freqs[[id]], blast[[id]])
+}
+combined <- bind_rows(otu_genus) %>%
+    arrange(taxon) %>%
+    group_by(taxon) %>%
+    summarise(across(everything(), sum))
+combined[is.na(combined)] <- 0.0
+write.csv(combined, "genus_otu_tables.csv", row.names = FALSE)
 ```
 
 ## Importing PCOA artifacts

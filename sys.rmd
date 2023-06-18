@@ -1,0 +1,63 @@
+```{r}
+library(ape)
+library(TreeDist)
+library(phyloseq)
+library(tidyverse)
+library(glue)
+library(qiime2R)
+
+alpha_metrics <- list(
+  sh = "shannon", pi = "pielou_e",
+  si = "simpson", se = "simpson_e"
+)
+
+get_artifact_data <- function(path, ids, extension) {
+  # Generic import function for artifact data
+  artifacts <- list()
+  for (id in names(ids)) {
+    a_path <- glue("{path}/{id}-{extension}.qza")
+    artifacts[[id]] <- read_qza(a_path)$data
+  }
+  return(artifacts)
+}
+
+known_taxon <- function(row, taxonomy) {
+  known_rank <- 7
+  while (is.na(taxonomy[row, known_rank]) && known_rank != 1) {
+    known_rank <- known_rank - 1
+  }
+  return(taxonomy[row, known_rank])
+}
+
+genus_level <- function(row, taxonomy) {
+  if (is.na(taxonomy[row, 7])) {
+    return(taxonomy[row, 6])
+  }
+  return(taxonomy[row, 7])
+}
+
+replace_tips <- function(tree, taxonomy_frame) {
+  # Map OTU ids to their taxonomic identifications on the tree tips
+  taxonomy_frame$known <- lapply(seq_len(nrow(taxonomy_frame)), known_taxon,
+    taxonomy = taxonomy_frame
+  )
+  tree$tip.label <- taxonomy_frame$known[tree$tip.label %in%
+    rownames(taxonomy_frame)]
+  return(tree)
+}
+```
+
+```{r}
+otus <- read_qza("./results/2-OTUs/Jelly-otuFreqs.qza")$data
+blast <- read_qza("./results/3-Classified/Jelly-BLAST_All.qza")$data %>%
+  parse_taxonomy()
+vsearch <- read_qza("./results/3-Classified/Jelly-Vsearch_All.qza")$data %>%
+  parse_taxonomy()
+iqtree <- read_qza("./results/6-RootedTrees/Jelly-IQTREE_RootedTree.qza")$data
+known <- lapply(1:nrow(blast), genus_level, taxonomy = blast) %>%
+  unlist() %>%
+  data.frame(row.names = rownames(blast), taxon = .) %>%
+  merge(., otus, by = 0) %>%
+  drop_na()
+```
+Simply by counting the number of unidentified taxa, vsearch performs worse than blast

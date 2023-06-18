@@ -48,13 +48,16 @@ genus_level <- function(row, taxonomy) {
   return(taxonomy[row, 7])
 }
 
-to_genus_csv <- function(otu_table, taxonomy, file_name) {
+to_genus_csv <- function(otu_table, taxonomy) {
   # Export a new biom table where the row names have been
   #   replaced with genus-level species identifications where possible
   known <- lapply(1:nrow(taxonomy), genus_level, taxonomy = taxonomy) %>%
     unlist() %>%
-    data.frame(rownames = rownames(taxonomy), taxon = .)
-  write.csv(known %>% drop_na(), file = file_name)
+    data.frame(row.names = rownames(taxonomy), taxon = .) %>%
+    merge(., otu_table, by = 0) %>%
+    drop_na()
+  rownames(known) <- known$Row.names
+  return(subset(known, select = -c(Row.names)))
 }
 
 replace_tips <- function(tree, taxonomy_frame) {
