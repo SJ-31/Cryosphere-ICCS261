@@ -6,6 +6,7 @@ include { EXPORT } from './modules/export'
 include { CUTADAPT } from './modules/cutadapt'
 include { QSCORE } from './modules/qscore'
 include { MERGE } from './modules/merge'
+include { PICRUST2 } from './modules/picrust2'
 include { CLASSIFY_SKLEARN } from './modules/classify_sklearn'
 include { BETADIVERSITY } from './modules/betadiv.nf'
 include { ALPHADIVERSITY } from './modules/alphadiv.nf'
@@ -121,4 +122,11 @@ workflow diversity {
     // Analyze diversity
     PCOA(distance_matrices, params.pcoa_dimensions,
     params.outdirAnalysis)
+}
+
+workflow function_annotation {
+    get_channel("$params.outdirOTUExport/*biom")
+    .join(get_channel("$params.outdirOTUExport/*fasta"))
+        .set { freqs_seqs_ch }
+    PICRUST2(freqs_seqs_ch, params.outdirFunctions)
 }

@@ -19,12 +19,13 @@ blast <- lapply(
     get_artifact_data("./results/3-Classified", id_key, "BLAST_All"),
     parse_taxonomy
 )
-# sklearn <- lapply(
-#     get_artifact_data("./results/3-Classified", id_key, "Sklearn"),
-#     parse_taxonomy
-# )
+sklearn <- lapply(
+    get_artifact_data("./results/3-Classified", id_key, "Sklearn"),
+    parse_taxonomy
+)
 ```
-TODO: Which classifier was better?
+Simply by counting the number of NA entries in the taxonomy columns, the sklearn
+classifier consistently outperforms the traditional blast approach. Furthermore, the sklearn is faster and consumes less memory (aside from the initial training step, which I could not do)
 
 The `known_taxon` function collapses the taxonomy table into the first identification. A similar function will be used to collapse it into at least genus identifications for use with farprotax.
 

@@ -1,3 +1,4 @@
+### Load functions and libraries
 ```{r}
 library(ape)
 library(TreeDist)
@@ -7,59 +8,130 @@ library(glue)
 library(qiime2R)
 
 alpha_metrics <- list(
-  sh = "shannon", pi = "pielou_e",
-  si = "simpson", se = "simpson_e"
+    sh = "shannon", pi = "pielou_e",
+    si = "simpson", se = "simpson_e"
 )
 
+unique_known <- function(otus, identified, classifier) {
+    uniques <- identified %>%
+        group_by(taxon) %>%
+        summarise() %>%
+        dim()
+    msg <- "% Unique otus:"
+    prop <- round((uniques[1] / dim(otus)[1]) * 100, 2)
+    return(glue("{classifier} {msg} {prop}"))
+}
+
 get_artifact_data <- function(path, ids, extension) {
-  # Generic import function for artifact data
-  artifacts <- list()
-  for (id in names(ids)) {
-    a_path <- glue("{path}/{id}-{extension}.qza")
-    artifacts[[id]] <- read_qza(a_path)$data
-  }
-  return(artifacts)
+    # Generic import function for artifact data
+    artifacts <- list()
+    for (id in names(ids)) {
+        a_path <- glue("{path}/{id}-{extension}.qza")
+        artifacts[[id]] <- read_qza(a_path)$data
+    }
+    return(artifacts)
 }
 
 known_taxon <- function(row, taxonomy) {
-  known_rank <- 7
-  while (is.na(taxonomy[row, known_rank]) && known_rank != 1) {
-    known_rank <- known_rank - 1
-  }
-  return(taxonomy[row, known_rank])
+    known_rank <- 7
+    while (is.na(taxonomy[row, known_rank]) && known_rank != 1) {
+        known_rank <- known_rank - 1
+    }
+    return(taxonomy[row, known_rank])
 }
 
 genus_level <- function(row, taxonomy) {
-  if (is.na(taxonomy[row, 7])) {
-    return(taxonomy[row, 6])
-  }
-  return(taxonomy[row, 7])
+    if (is.na(taxonomy[row, 7])) {
+        return(taxonomy[row, 6])
+    }
+    return(taxonomy[row, 7])
 }
 
 replace_tips <- function(tree, taxonomy_frame) {
-  # Map OTU ids to their taxonomic identifications on the tree tips
-  taxonomy_frame$known <- lapply(seq_len(nrow(taxonomy_frame)), known_taxon,
-    taxonomy = taxonomy_frame
-  )
-  tree$tip.label <- taxonomy_frame$known[tree$tip.label %in%
-    rownames(taxonomy_frame)]
-  return(tree)
+    # Map OTU ids to their taxonomic identifications on the tree tips
+    taxonomy_frame$known <- lapply(seq_len(nrow(taxonomy_frame)), known_taxon,
+        taxonomy = taxonomy_frame
+    )
+    tree$tip.label <- taxonomy_frame$known[tree$tip.label %in%
+        rownames(taxonomy_frame)]
+    return(tree)
+}
+
+identify <- function(taxonomy, otus) {
+    return(
+        lapply(1:nrow(taxonomy), known_taxon, taxonomy = taxonomy) %>%
+            unlist() %>%
+            data.frame(row.names = rownames(blast), taxon = .) %>%
+            merge(., otus, by = 0) %>%
+            drop_na()
+    )
 }
 ```
+### Sample background
+
+#### Importing the data
+
+The fastq files contain single-end reads, sequenced with the 454 GS FLX+ via a pyrosequencing approach
+https://trace.ncbi.nlm.nih.gov/Traces/study/?acc=SRP254518&o=acc_s%3Aa&s=SRR11447095,SRR11447093,SRR11447098
+
+```{bash}
+qiime tools import \
+    --type 'SampleData[SequencesWithQuality]' \
+    --input-path data.tsv \
+    --output-path jelly.qza \
+    --input-format SingleEndFastqManifestPhred33V2
+```
+### Raw data exploration
+
+The initial data exploration was performed with fastqc. There is a high variation in read length, though the majority are in the 450 - 500 bp range. As expected for short-read sequencing, read quality drops at higher read lengths, necessitating trimming. Surprisingly, the sample has little adapter content.
+
+#### Blasting overrepresenting sequences
+
+To get a rough idea of what microorganisms were represented most in the sample, I used data from `fastqc`'s overrepresented sequences module.
+The sequences listed in the module were combined, clustered together to remove redundant reads with `cd-hit`, then blasted against the custom 16s rRNA database.
+
+- `cd-hit` grouped 238 overrepresented sequences from the 7 samples into only 17 clusters
+- The following describes the best 3 hits for the top 3 most overrepresented sequences
+  - 1. Entoplasma, Mesoplasma, Lebetimonas
+  - 2. _Ferruginivarius sediminum_, Azospirillum, Desulfosporosinus
+  - 3. Flavobacteria, Dokdonia, Joostella
+
+### Import results
 
 ```{r}
 otus <- read_qza("./results/2-OTUs/Jelly-otuFreqs.qza")$data
 blast <- read_qza("./results/3-Classified/Jelly-BLAST_All.qza")$data %>%
-  parse_taxonomy()
+    parse_taxonomy()
+sklearn <- read_qza("./results/3-Classified/Jelly-Sklearn.qza")$data %>%
+    parse_taxonomy()
 vsearch <- read_qza("./results/3-Classified/Jelly-Vsearch_All.qza")$data %>%
-  parse_taxonomy()
+    parse_taxonomy()
 iqtree <- read_qza("./results/6-RootedTrees/Jelly-IQTREE_RootedTree.qza")$data
-known <- lapply(1:nrow(blast), genus_level, taxonomy = blast) %>%
-  unlist() %>%
-  data.frame(row.names = rownames(blast), taxon = .) %>%
-  merge(., otus, by = 0) %>%
-  drop_na()
-```
-Simply by counting the number of unidentified taxa, vsearch performs worse than blast
 
-The sample sequences were obtained from  Rhizostoma pulmo, collected 
+ko <- read_delim("results/3-FunctionAnnotation/Jelly_PICRUST2/KO_metagenome_out//pred_metagenome_unstrat.tsv", delim = "\t")
+
+b_known <- identify(blast, otus)
+unique_known(otus, b_known, classifier = "BLAST")
+sk_known <- identify(sklearn, otus)
+unique_known(otus, sk_known, classifier = "Sklearn")
+v_known <- identify(vsearch, otus)
+unique_known(otus, v_known, classifier = "Vsearch")
+```
+Simply by looking at the proportion of identified, unique otus, we can see that the machine-learning approach is more effective than the homology-based methods (it's also far lighter on computer resources). I'll use the sklearn identifications for the rest of the analysis. 
+
+### Taxonomic analysis
+```{r}
+# Which genera were most abundant?
+sklearn %>%
+    group_by(Genus) %>%
+    count(sort = TRUE)
+```
+
+WARN: Assignment
+1. Jellyfish species: Rhizostoma pulmo,
+
+top three abundant bacterial genera (identified with sklearn classifier): Corynebacterium, Sphingomonas, Chryseobacterium
+
+
+2. I plan to look at genus-level diversity within the R. pulmo microbiome, given that the classifiers were unable to obtain many species-level identifications. The primary
+ 
