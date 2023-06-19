@@ -1,4 +1,6 @@
 library(ape)
+library(ggtree)
+library(vegan)
 library(TreeDist)
 library(phyloseq)
 library(tidyverse)
@@ -45,6 +47,7 @@ get_artifact_data <- function(path, ids, extension, metric_list) {
 }
 
 known_taxon <- function(row, taxonomy) {
+  # Collapse taxonomy into last known taxon
   known_rank <- 7
   while (is.na(taxonomy[row, known_rank]) && known_rank != 1) {
     known_rank <- known_rank - 1
@@ -107,4 +110,42 @@ plot_pcoa <- function(pcoa, color_by) {
       )) +
       geom_point()
   )
+}
+
+unique_known <- function(otus, identified, classifier) {
+  uniques <- identified %>%
+    group_by(taxon) %>%
+    summarise() %>%
+    dim()
+  msg <- "% Unique otus:"
+  prop <- round((uniques[1] / dim(otus)[1]) * 100, 2)
+  return(glue("{classifier} {msg} {prop}"))
+}
+
+filter_dm <- function(dm, pattern) {
+  # Remove sites from a distance matrix by pattern
+  dm <- dm %>%
+    as.matrix() %>%
+    as.data.frame() %>%
+    select(!(matches(pattern))) %>%
+    filter(!(grepl(pattern, rownames(.)))) %>%
+    as.dist()
+  return(dm)
+}
+
+filter_meta <- function(metadata, pattern) {
+  # Return metadata entries without pattern
+  return(metadata %>% filter(!(grepl(pattern, `sample.id`))))
+}
+
+sites_x_func <- function(picrust_tsv2) {
+  # Reformats picrust's biom output files into a site x function dataframe,
+  #   compatible with vegan
+  return(picrust_tsv2 %>%
+    as.data.frame() %>%
+    t() %>%
+    `colnames<-`(subset(., grepl("function", rownames(.)))) %>%
+    as.data.frame() %>%
+    slice(-1) %>%
+    mutate_all(as.numeric))
 }

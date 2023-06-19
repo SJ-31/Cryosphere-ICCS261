@@ -1,17 +1,6 @@
 ```{r}
 source("./all_artifacts.r")
 ```
-### Phylogenetic trees
-```{r}
-fasttree <- get_artifact_data(
-    "./results/6-RootedTrees", id_key,
-    "FastTree_RootedTree"
-)
-iqtree <- get_artifact_data(
-    "./results/6-RootedTrees", id_key,
-    "IQTREE_RootedTree"
-)
-```
 
 ### Taxonomic classifications
 ```{r}
@@ -28,6 +17,21 @@ Simply by counting the number of NA entries in the taxonomy columns, the sklearn
 classifier consistently outperforms the traditional blast approach. Furthermore, the sklearn is faster and consumes less memory (aside from the initial training step, which I could not do)
 
 The `known_taxon` function collapses the taxonomy table into the first identification. A similar function will be used to collapse it into at least genus identifications for use with farprotax.
+
+### Phylogenetic trees
+```{r}
+fasttree <- get_artifact_data(
+    "./results/6-RootedTrees", id_key,
+    "FastTree_RootedTree"
+)
+iqtree <- get_artifact_data(
+    "./results/6-RootedTrees", id_key,
+    "IQTREE_RootedTree"
+)
+
+```
+
+
 
 ### Import frequency tables
 The frequency tables are stored in BIOM format: OTUs x sites
@@ -52,12 +56,12 @@ combined[is.na(combined)] <- 0.0
 write.csv(combined, "genus_otu_tables.csv", row.names = FALSE)
 ```
 
-## Importing PCOA artifacts
+## Diversity analyses
 
-```{r}
-```
+### Alpha diversity
 
-## Beta diversity
+
+### Beta diversity
 ```{r}
 beta <- get_artifact_data("./results/7-Diversity",
     list(Merged = NULL),
@@ -71,3 +75,12 @@ pcoa2D <- get_artifact_data("./results/8-Analysis",
 )
 pcoa2D_merged <- lapply(pcoa2D$Merged, metadata_merge_pcoa, metadata = metadata)
 ```
+
+After visualizing the beta diversity, we can immediately rule 
+
+PERMANOVA
+```{r}
+adonis2(beta$Merged$bc ~ metadata$Location)
+```
+
+### Functional analysis
