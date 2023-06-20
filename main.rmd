@@ -28,7 +28,6 @@ iqtree <- get_artifact_data(
     "./results/6-RootedTrees", id_key,
     "IQTREE_RootedTree"
 )
-
 ```
 
 
@@ -84,3 +83,20 @@ adonis2(beta$Merged$bc ~ metadata$Location)
 ```
 
 ### Functional analysis
+The raw output tables here are the absolute abundances of molecular functions in each site using the KEGG Orthology database (KO). PICRUSt2 integrates with other databases, such as Enzyme Commission numbers (EC), but I've chosen to use the KO database because the PICRUSt2 authors describe how they've improved on the database integration compared to PICRUSt1. 
+As PICRUSt2 failed to analyze the merged dataset, I will combine the output tables from each sample.
+```{r}
+ko_all <- ko %>%
+    # Merge the PICRUSt2 tables
+    reduce(merge, by = "function", all = TRUE) %>%
+    as_tibble() %>%
+    replace(is.na(.), 0) %>%
+    rel_abund() %>% # Convert to relative abundances
+    as_tibble() %>%
+    sites_x_func() # Transpose into sites x function format
+# Compute bray curtis distance
+bc_func <- vegdist(ko_all, method = "bray")
+# Compute jaccard distance
+ja_func <- vegdist(ko_all, method = "jaccard")
+```
+

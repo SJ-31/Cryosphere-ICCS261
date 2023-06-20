@@ -46,6 +46,21 @@ get_artifact_data <- function(path, ids, extension, metric_list) {
   return(artifacts)
 }
 
+# Get function annotations
+ko <- list()
+for (id in names(id_key)) {
+  path <- glue("./results/3-FunctionAnnotation/{id}_PICRUST2")
+  ko[[id]] <- read_delim(glue("{path}/KO_metagenome_out/pred_metagenome_unstrat.tsv"))
+}
+
+rel_abund <- function(abs_abund) {
+  rel_abund <- data.frame(`function` = abs_abund[1])
+  for (col in 2:ncol(abs_abund)) {
+    rel_abund[colnames(abs_abund[col])] <- abs_abund[col] / sum(abs_abund[col])
+  }
+  return(rel_abund)
+}
+
 known_taxon <- function(row, taxonomy) {
   # Collapse taxonomy into last known taxon
   known_rank <- 7
