@@ -96,7 +96,13 @@ ko_all <- ko %>%
     sites_x_func() # Transpose into sites x function format
 # Compute bray curtis distance
 bc_func <- vegdist(ko_all, method = "bray")
+pcoa_bc_func <- bc_func %>%
+    wcmdscale(k = 2) %>%
+    metadata_merge_pcoa(metadata, ., functions = TRUE)
 # Compute jaccard distance
 ja_func <- vegdist(ko_all, method = "jaccard")
+pcoa_ja_func <- ja_func %>%
+    wcmdscale(k = 2) %>%
+    metadata_merge_pcoa(metadata, ., functions = TRUE)
 ```
 

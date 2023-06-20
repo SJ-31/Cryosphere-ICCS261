@@ -108,23 +108,41 @@ replace_tips <- function(tree, taxonomy_frame) {
   return(tree)
 }
 
-metadata_merge_pcoa <- function(metadata, ordination) {
-  return(
-    ordination %>%
+metadata_merge_pcoa <- function(metadata, ordination, functions) {
+  if (missing(functions)) {
+    return(
+      ordination %>%
+        as.data.frame() %>%
+        inner_join(., metadata, by = join_by(x$Vectors.SampleID == y$sample.id))
+    )
+  } else {
+    return(ordination %>%
       as.data.frame() %>%
-      inner_join(., metadata, by = join_by(x$Vectors.SampleID == y$sample.id))
-  )
+      mutate(sample.id = rownames(.)) %>%
+      inner_join(metadata))
+  }
 }
 
-plot_pcoa <- function(pcoa, color_by) {
-  return(
-    pcoa %>%
-      ggplot(aes(
-        x = Vectors.PC1, y = Vectors.PC2,
-        color = .data[[color_by]]
-      )) +
-      geom_point()
-  )
+plot_pcoa <- function(pcoa, color_by, functions) {
+  if (missing(functions)) {
+    return(
+      pcoa %>%
+        ggplot(aes(
+          x = Vectors.PC1, y = Vectors.PC2,
+          color = .data[[color_by]]
+        )) +
+        geom_point()
+    )
+  } else {
+    return(
+      pcoa %>%
+        ggplot(aes(
+          x = V1, y = V2,
+          color = .data[[color_by]]
+        )) +
+        geom_point()
+    )
+  }
 }
 
 unique_known <- function(otus, identified, classifier) {
