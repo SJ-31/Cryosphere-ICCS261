@@ -5,6 +5,7 @@ library(TreeDist)
 library(phyloseq)
 library(tidyverse)
 library(glue)
+library(paletteer)
 library(qiime2R)
 library(ggpubr)
 
@@ -70,6 +71,15 @@ known_taxon <- function(row, taxonomy) {
   return(taxonomy[row, known_rank])
 }
 
+combine_freqs <- function(freq_list, sum_by) {
+  combined <- bind_rows(freq_list) %>%
+    arrange(.[["sum_by"]]) %>%
+    group_by(sum_by) %>%
+    summarise(across(everything(), sum)) %>%
+    mutate_all(~ replace(., is.na(.), 0))
+  return(combined)
+}
+
 genus_level <- function(row, taxonomy) {
   if (is.na(taxonomy[row, 7])) {
     return(taxonomy[row, 6])
@@ -123,26 +133,28 @@ metadata_merge_pcoa <- function(metadata, ordination, functions) {
   }
 }
 
-plot_pcoa <- function(pcoa, color_by, functions) {
+plot_pcoa <- function(pcoa, color_by, functions, title) {
   if (missing(functions)) {
-    return(
-      pcoa %>%
-        ggplot(aes(
-          x = Vectors.PC1, y = Vectors.PC2,
-          color = .data[[color_by]]
-        )) +
-        geom_point()
-    )
+    x <- "Vectors.PC1"
+    y <- "Vectors.PC2"
   } else {
-    return(
-      pcoa %>%
-        ggplot(aes(
-          x = V1, y = V2,
-          color = .data[[color_by]]
-        )) +
-        geom_point()
-    )
+    x <- "V1"
+    y <- "V2"
   }
+  return(
+    pcoa %>%
+      ggplot(aes(
+        x = .data[[x]], y = .data[[y]],
+        color = .data[[color_by]]
+      )) +
+      geom_point(
+        shape = "circle",
+        size = 2,
+        stroke = 1
+      ) +
+      scale_color_paletteer_d("pals::glasbey") +
+      labs(x = "PC1", y = "PC2", title = title)
+  )
 }
 
 unique_known <- function(otus, identified, classifier) {

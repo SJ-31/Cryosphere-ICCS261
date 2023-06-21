@@ -12,6 +12,8 @@ sklearn <- lapply(
     get_artifact_data("./results/3-Classified", id_key, "Sklearn"),
     parse_taxonomy
 )
+sk_merged <- read_qza("./results/3-Classified/Merged-Sklearn.qza")$data %>%
+    parse_taxonomy()
 ```
 Simply by counting the number of NA entries in the taxonomy columns, the sklearn
 classifier consistently outperforms the traditional blast approach. Furthermore, the sklearn is faster and consumes less memory (aside from the initial training step, which I could not do)
@@ -47,12 +49,8 @@ otu_genus <- list()
 for (id in names(id_key)) {
     otu_genus[[id]] <- to_genus_csv(otu_freqs[[id]], blast[[id]])
 }
-combined <- bind_rows(otu_genus) %>%
-    arrange(taxon) %>%
-    group_by(taxon) %>%
-    summarise(across(everything(), sum))
-combined[is.na(combined)] <- 0.0
-write.csv(combined, "genus_otu_tables.csv", row.names = FALSE)
+genus_combined <- combine_freqs(otu_genus, taxon)
+# write.csv(combined, "genus_otu_tables.csv", row.names = FALSE)
 ```
 
 ## Diversity analyses
@@ -73,9 +71,25 @@ pcoa2D <- get_artifact_data("./results/8-Analysis",
     metric_list = beta_metrics
 )
 pcoa2D_merged <- lapply(pcoa2D$Merged, metadata_merge_pcoa, metadata = metadata)
+pcoabc <- plot_pcoa(pcoa2D_merged$bc, "Location",
+    show_legend = TRUE,
+    title = "Bray Curtis"
+)
+pcoauu <- plot_pcoa(pcoa2D_merged$uu, "Location",
+    title = "Unweighted Unifrac",
+    show_legend = TRUE
+)
+pcoawn <- plot_pcoa(pcoa2D_merged$wn, "Location",
+    title = "Weighted Normalized Unifrac ",
+    show_legend = TRUE
+)
+pcoa_arrange <- ggarrange(pcoabc, pcoauu, pcoaawn,
+    ncol = 3,
+    common.legend = TRUE
+)
 ```
 
-After visualizing the beta diversity, we can immediately rule 
+After visualizing the beta diversity, we can immediately rule
 
 PERMANOVA
 ```{r}
@@ -83,7 +97,7 @@ adonis2(beta$Merged$bc ~ metadata$Location)
 ```
 
 ### Functional analysis
-The raw output tables here are the absolute abundances of molecular functions in each site using the KEGG Orthology database (KO). PICRUSt2 integrates with other databases, such as Enzyme Commission numbers (EC), but I've chosen to use the KO database because the PICRUSt2 authors describe how they've improved on the database integration compared to PICRUSt1. 
+The raw output tables here are the absolute abundances of molecular functions in each site using the KEGG Orthology database (KO). PICRUSt2 integrates with other databases, such as Enzyme Commission numbers (EC), but I've chosen to use the KO database because the PICRUSt2 authors describe how they've improved on the database integration compared to PICRUSt1.
 As PICRUSt2 failed to analyze the merged dataset, I will combine the output tables from each sample.
 ```{r}
 ko_all <- ko %>%
@@ -94,7 +108,7 @@ ko_all <- ko %>%
     rel_abund() %>% # Convert to relative abundances
     as_tibble() %>%
     sites_x_func() # Transpose into sites x function format
-# Compute bray curtis distance
+# Compute bray curtis distance, then plot pcoa
 bc_func <- vegdist(ko_all, method = "bray")
 pcoa_bc_func <- bc_func %>%
     wcmdscale(k = 2) %>%
@@ -106,3 +120,53 @@ pcoa_ja_func <- ja_func %>%
     metadata_merge_pcoa(metadata, ., functions = TRUE)
 ```
 
+### Differential abundance analysis
+First, we will perform tests on the abundance of identified OTUs.
+
+```bash
+# One of the assumptions that ANCOM-BC makes is that fewer than 25% of OTUs are changing between groups, so we as with ANOSIM and PERMANOVA, we keep only the sites that appear close together through beta diversity
+qiime feature-table filter-samples \
+--i-table  \
+--m-metadata-file ds_metadata.tsv \
+--p-where '[Location]='"'"'gut'"'"'' \
+--o-filtered-table
+
+# Collapse into the taxonomy into order-level identifications
+qiime taxa collapse \
+--i-table \
+--i-taxonomy \
+--p-level 4 \
+--o-collapsed-table
+
+# ANCOM-BC cannot deal with zeros, so we need to perform a pseudocount
+qiime composition add-pseudocount \
+--i-table ./results/2-OTUs/Merged-otuFreqs.qza \
+--o-composition-table .results/8-Analysis/ANCOM-BC/Merged-composition.qza
+
+qiime composition ancombc \
+--i-table ./results/8-Analysis/ANCOM-BC/Merged-composition.qza \
+--m-metadata-file ds_metadata.tsv \
+--p-formula Location \
+--o-differentials ./results/8-Analysis/
+```
+
+```{r}
+known_otus <- list()
+for (id in names(id_key)) {
+    known_otus[[id]] <- merge_with_id(otu_freqs[[id]], sklearn[[id]])
+}
+# combined <- combine_freqs(known_otus, taxon) %>%
+#     inner_join(metadata, )
+# Import all ancombc results
+ancombc_path <- "./results/8-Analysis/ancombc"
+ancombc_lfc <- read_csv("./results/8-Analysis/ancombc/w_slice.csv") # Log-fold change divided by standard error
+ancombc_q_val <- read_csv("./results/8-Analysis/ancombc/w_slice.csv")
+```
+
+ANCOM-BC will be conducted for each site to determine which taxa are differentially abundant. The results will then
+- ANCOM-BC returns five metrics for each OTU:
+    - Log fold change across different sites
+    - W-score: log fold change across different sites divided by standard error
+    - p value
+    - q value
+    - Standard error
