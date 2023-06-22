@@ -71,21 +71,26 @@ pcoa2D <- get_artifact_data("./results/8-Analysis",
     metric_list = beta_metrics
 )
 pcoa2D_merged <- lapply(pcoa2D$Merged, metadata_merge_pcoa, metadata = metadata)
+pcoaja <- plot_pcoa(pcoa2D_merged$ja, "Location",
+    title = "Jaccard distance"
+)
 pcoabc <- plot_pcoa(pcoa2D_merged$bc, "Location",
-    show_legend = TRUE,
     title = "Bray Curtis"
 )
 pcoauu <- plot_pcoa(pcoa2D_merged$uu, "Location",
     title = "Unweighted Unifrac",
-    show_legend = TRUE
 )
 pcoawn <- plot_pcoa(pcoa2D_merged$wn, "Location",
     title = "Weighted Normalized Unifrac ",
-    show_legend = TRUE
 )
-pcoa_arrange <- ggarrange(pcoabc, pcoauu, pcoaawn,
+pcoa_arrange <- ggarrange(pcoabc, pcoauu, pcoawn,
     ncol = 3,
-    common.legend = TRUE
+    common.legend = TRUE,
+    legend = "right"
+)
+ggsave("./figures/pcoas.png",
+    plot = pcoa_arrange,
+    dpi = "retina", width = 20, height = 10
 )
 ```
 
@@ -108,6 +113,7 @@ ko_all <- ko %>%
     rel_abund() %>% # Convert to relative abundances
     as_tibble() %>%
     sites_x_func() # Transpose into sites x function format
+
 # Compute bray curtis distance, then plot pcoa
 bc_func <- vegdist(ko_all, method = "bray")
 pcoa_bc_func <- bc_func %>%
@@ -118,7 +124,27 @@ ja_func <- vegdist(ko_all, method = "jaccard")
 pcoa_ja_func <- ja_func %>%
     wcmdscale(k = 2) %>%
     metadata_merge_pcoa(metadata, ., functions = TRUE)
+
+# Plot and compare with ordination on taxonomy
+plot_ja_func <- plot_pcoa(pcoa_ja_func, "Location",
+    title = "Jaccard distance",
+    subtitle = "From biological functions", functions = TRUE
+)
+plot_bc_func <- plot_pcoa(pcoa_bc_func, "Location",
+    title = "Bray Curtis",
+    subtitle = "From biological functions", functions = TRUE
+)
+func_compare <- ggarrange(plot_ja_func, pcoaja, plot_bc_func, pcoabc,
+    ncol = 2, nrow = 2, common.legend = TRUE, legend = "bottom"
+)
+ggsave("./figures/func_vs_tax.png",
+    plot = func_compare,
+    dpi = "retina", width = 20, height = 10
+)
 ```
+In all plots, we can see that there is a high degree of variation within samples belonging to the same site.  
+From the plot, we can see that the Bray Curtis, distance metric, without taking into account phylogenetic distances doesn't separate most of the sites too well.Strangely though, the soil "outgroup" in the BC plot cannot be distinguished from the others 
+
 
 ### Differential abundance analysis
 First, we will perform tests on the abundance of identified OTUs.

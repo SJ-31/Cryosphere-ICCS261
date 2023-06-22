@@ -133,7 +133,7 @@ metadata_merge_pcoa <- function(metadata, ordination, functions) {
   }
 }
 
-plot_pcoa <- function(pcoa, color_by, functions, title) {
+plot_pcoa <- function(pcoa, color_by, functions, title, subtitle = NULL) {
   if (missing(functions)) {
     x <- "Vectors.PC1"
     y <- "Vectors.PC2"
@@ -149,11 +149,11 @@ plot_pcoa <- function(pcoa, color_by, functions, title) {
       )) +
       geom_point(
         shape = "circle",
-        size = 2,
+        size = 1,
         stroke = 1
       ) +
       scale_color_paletteer_d("pals::glasbey") +
-      labs(x = "PC1", y = "PC2", title = title)
+      labs(x = "PC1", y = "PC2", title = title, subtitle = subtitle)
   )
 }
 
