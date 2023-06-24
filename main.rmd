@@ -94,15 +94,21 @@ ggsave("./figures/pcoas.png",
     dpi = "retina", width = 20, height = 10
 )
 ```
-The pcoa plots depict clearly how the choice of distance metric affects the clustering of samples. Clustering in the Bray Curtis plot represents sites sharing many of the same species and in similar abundances. The big cluster falls apart   
+The pcoa plots depict clearly how the choice of distance metric affects the clustering of samples. 
+- Clustering in the Bray Curtis plot represents sites sharing many of the same species and in similar abundances. The big cluster falls apart once we factor the evolutionary distance between OTUs, shown by the Unifrac metrics. 
+    - This implies that although some taxa are shared, the unique taxa are a evolutionary distant (essentially have very different DNA) from the shared ones.
+- Once we add weightings by abundance though, new clusters form, indicating there are many more common taxa within the groups than there are unique taxa.
+- Even partitioning sites by habitat type - glacier and permafrost, doesn't help
 
-It's interesting how the Villum station site is 
-We rule out the soil site, 
-After visualizing the beta diversity, we can immediately rule
-In all plots, we can see that there is a high degree of variation within samples belonging to the same site.  
-From the plot, we can see that the Bray Curtis, distance metric, without taking into account phylogenetic distances doesn't separate most of the sites too well.Strangely though, the soil "outgroup" in the BC plot cannot be distinguished from the others 
+Admittedly, there is no clear consensus on what metric to choose when the results disagree strongly with each other. For the scope of this project, I will focusing the rest of the analyses only on the cluster depicted in the unweighted unifrac plot consisting of Cryoconite, Bihor Mountain caves, Yakutia, East Iceland glaciers, Catriona snow, Greenland ice and Storglaciaren.
+```{r}
+# Filter the sites
 
-PERMANOVA
+```
+
+
+#### PERMANOVA
+Within the chosen cluster, its unclear whether or not the differences between sites are statistically signif
 ```{r}
 adonis2(beta$Merged$bc ~ metadata$Location)
 ```
