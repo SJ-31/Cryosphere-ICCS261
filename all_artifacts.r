@@ -141,6 +141,7 @@ plot_pcoa <- function(pcoa, color_by, functions, title, subtitle = NULL) {
     x <- "V1"
     y <- "V2"
   }
+  type <- pcoa[["Type"]]
   return(
     pcoa %>%
       ggplot(aes(
@@ -148,10 +149,10 @@ plot_pcoa <- function(pcoa, color_by, functions, title, subtitle = NULL) {
         color = .data[[color_by]]
       )) +
       geom_point(
-        shape = "circle",
-        size = 1,
-        stroke = 1
-      ) +
+        aes(shape = .data[["Type"]]),
+        size = 2,
+        stroke = 1)
+       +
       scale_color_paletteer_d("pals::glasbey") +
       labs(x = "PC1", y = "PC2", title = title, subtitle = subtitle)
   )

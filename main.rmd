@@ -44,7 +44,7 @@ otu_freqs <- lapply(
 ```
 
 The following snippet maps otu ids the genus-level identifications for use with the farprotax database, writing csv files for each.
-```{r}
+```r
 otu_genus <- list()
 for (id in names(id_key)) {
     otu_genus[[id]] <- to_genus_csv(otu_freqs[[id]], blast[[id]])
@@ -59,6 +59,7 @@ genus_combined <- combine_freqs(otu_genus, taxon)
 
 
 ### Beta diversity
+All ordination plots will be carried out with PCOA
 ```{r}
 beta <- get_artifact_data("./results/7-Diversity",
     list(Merged = NULL),
@@ -93,8 +94,13 @@ ggsave("./figures/pcoas.png",
     dpi = "retina", width = 20, height = 10
 )
 ```
+The pcoa plots depict clearly how the choice of distance metric affects the clustering of samples. Clustering in the Bray Curtis plot represents sites sharing many of the same species and in similar abundances. The big cluster falls apart   
 
+It's interesting how the Villum station site is 
+We rule out the soil site, 
 After visualizing the beta diversity, we can immediately rule
+In all plots, we can see that there is a high degree of variation within samples belonging to the same site.  
+From the plot, we can see that the Bray Curtis, distance metric, without taking into account phylogenetic distances doesn't separate most of the sites too well.Strangely though, the soil "outgroup" in the BC plot cannot be distinguished from the others 
 
 PERMANOVA
 ```{r}
@@ -142,8 +148,6 @@ ggsave("./figures/func_vs_tax.png",
     dpi = "retina", width = 20, height = 10
 )
 ```
-In all plots, we can see that there is a high degree of variation within samples belonging to the same site.  
-From the plot, we can see that the Bray Curtis, distance metric, without taking into account phylogenetic distances doesn't separate most of the sites too well.Strangely though, the soil "outgroup" in the BC plot cannot be distinguished from the others 
 
 
 ### Differential abundance analysis
