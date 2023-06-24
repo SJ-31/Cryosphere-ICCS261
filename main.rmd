@@ -100,17 +100,26 @@ The pcoa plots depict clearly how the choice of distance metric affects the clus
 - Once we add weightings by abundance though, new clusters form, indicating there are many more common taxa within the groups than there are unique taxa.
 - Even partitioning sites by habitat type - glacier and permafrost, doesn't help
 
-Admittedly, there is no clear consensus on what metric to choose when the results disagree strongly with each other. For the scope of this project, I will focusing the rest of the analyses only on the cluster depicted in the unweighted unifrac plot consisting of Cryoconite, Bihor Mountain caves, Yakutia, East Iceland glaciers, Catriona snow, Greenland ice and Storglaciaren.
+Admittedly, there is no clear consensus on what metric to choose when the results disagree strongly with each other. For the scope of this project, I will focusing the rest of the analyses only on the cluster depicted in the unweighted unifrac plot consisting of Cryoconite, Bihor Mountain caves, Yakutia, East Iceland glaciers, Catriona snow, and Greenland ice.
 ```{r}
 # Filter the sites
-
+keep <- c("BhM", "CrC", "CaS", "CeY", "GrI", "EaI")
+keep2 <- c("ViS", "BrL", "BrH", "SvG")
+keep3 <- c("CaS", "CeY", "BhM", "EaI")
+filter_uu <- filter_dm(beta$Merged$uu, keep)
+filtered_meta <- filter_meta(metadata, keep)
+filter_wn <- filter_dm(beta$Merged$wn, keep2)
+filtered_meta2 <- filter_meta(metadata, keep2)
+filter_bc <- filter_dm(beta$Merged$bc, keep3)
+filtered_meta3 <- filter_meta(metadata, keep3)
 ```
 
-
 #### PERMANOVA
-Within the chosen cluster, its unclear whether or not the differences between sites are statistically signif
+Within the chosen cluster, its visually unclear whether or not the differences between sites are statistically signif
 ```{r}
-adonis2(beta$Merged$bc ~ metadata$Location)
+adonis2(filter_uu ~ filtered_meta$Location)
+adonis2(filter_wn ~ filtered_meta2$Location)
+adonis2(filter_bc ~ filtered_meta3$Location)
 ```
 
 ### Functional analysis
@@ -157,15 +166,17 @@ ggsave("./figures/func_vs_tax.png",
 
 
 ### Differential abundance analysis
-First, we will perform tests on the abundance of identified OTUs.
-
+Now we will perform tests on the abundance of identified OTUs within the sites
+```r
+# Write the filtered metadata to a file for filtering
+write_delim(filtered_meta, "to_keep.tsv", delim = "\t")
+```
 ```bash
-# One of the assumptions that ANCOM-BC makes is that fewer than 25% of OTUs are changing between groups, so we as with ANOSIM and PERMANOVA, we keep only the sites that appear close together through beta diversity
+# One of the assumptions that ANCOM-BC makes is that fewer than 25% of OTUs are changing between groups, so as with ANOSIM and PERMANOVA, we keep only the sites that appear close together through beta diversity
 qiime feature-table filter-samples \
---i-table  \
---m-metadata-file ds_metadata.tsv \
---p-where '[Location]='"'"'gut'"'"'' \
---o-filtered-table
+--i-table Merged-otuFreqs.qza \
+--m-metadata-file to_keep.tsv \
+--o-filtered-table Merged_filtered-otuFreqs.qza
 
 # Collapse into the taxonomy into order-level identifications
 qiime taxa collapse \

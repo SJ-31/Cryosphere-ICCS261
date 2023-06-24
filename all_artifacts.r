@@ -168,20 +168,20 @@ unique_known <- function(otus, identified, classifier) {
   return(glue("{classifier} {msg} {prop}"))
 }
 
-filter_dm <- function(dm, pattern) {
-  # Remove sites from a distance matrix by pattern
+filter_dm <- function(dm, keep) {
+  # Keep only specified sites in a distance matrix
   dm <- dm %>%
     as.matrix() %>%
     as.data.frame() %>%
-    select(!(matches(pattern))) %>%
-    filter(!(grepl(pattern, rownames(.)))) %>%
+    select(matches(keep)) %>%
+    filter(grepl(paste(keep, collapse = "|"), rownames(.))) %>%
     as.dist()
   return(dm)
 }
 
-filter_meta <- function(metadata, pattern) {
-  # Return metadata entries without pattern
-  return(metadata %>% filter(!(grepl(pattern, `sample.id`))))
+filter_meta <- function(metadata, keep) {
+  # Keep only specified sites in metadata with pattern
+  return(metadata %>% filter(grepl(paste(keep, collapse = "|"), `sample.id`)))
 }
 
 sites_x_func <- function(picrust_tsv2) {
