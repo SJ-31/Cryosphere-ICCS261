@@ -201,40 +201,46 @@ write_delim(filtered_meta, "to_keep.tsv", delim = "\t")
 ```bash
 # One of the assumptions that ANCOM-BC makes is that fewer than 25% of OTUs are changing between groups, so as with ANOSIM and PERMANOVA, we keep only the sites that appear close together through beta diversity
 qiime feature-table filter-samples \
---i-table Merged-otuFreqs.qza \
---m-metadata-file to_keep.tsv \
---o-filtered-table Merged_filtered-otuFreqs.qza
+--i-table 2-OTUs/Merged-otuFreqs.qza \
+--m-metadata-file ../to_keep.tsv \
+--o-filtered-table 8-ANCOM-BC/Merged_filtered-otuFreqs.qza
 
 # Collapse into the taxonomy into order-level identifications
 qiime taxa collapse \
---i-table \
---i-taxonomy \
+--i-table 8-ANCOM-BC/Merged_filtered-otuFreqs.qza \
+--i-taxonomy 3-Classified/Merged-Sklearn.qza \
 --p-level 4 \
---o-collapsed-table
-
-# ANCOM-BC cannot deal with zeros, so we need to perform a pseudocount
-qiime composition add-pseudocount \
---i-table ./results/2-OTUs/Merged-otuFreqs.qza \
---o-composition-table .results/8-Analysis/ANCOM-BC/Merged-composition.qza
+--o-collapsed-table 8-ANCOM-BC/Merged_collapsed-otuFreqs.qza
 
 qiime composition ancombc \
---i-table ./results/8-Analysis/ANCOM-BC/Merged-composition.qza \
---m-metadata-file ds_metadata.tsv \
+--i-table 8-ANCOM-BC/Merged_collapsed-otuFreqs.qza \
+--m-metadata-file ../ds_metadata.tsv \
 --p-formula Location \
---o-differentials ./results/8-Analysis/
+--o-differentials 8-ANCOM-BC/Merged-ancombc.qza
+
+qiime tools export \
+--input-path 8-ANCOM-BC/Merged-ancombc.qza \
+--outpath-path 8-ANCOM-BC/export
 ```
 
 ```{r}
-known_otus <- list()
-for (id in names(id_key)) {
-    known_otus[[id]] <- merge_with_id(otu_freqs[[id]], sklearn[[id]])
-}
-# combined <- combine_freqs(known_otus, taxon) %>%
-#     inner_join(metadata, )
 # Import all ancombc results
-ancombc_path <- "./results/8-Analysis/ancombc"
-ancombc_lfc <- read_csv("./results/8-Analysis/ancombc/w_slice.csv") # Log-fold change divided by standard error
-ancombc_q_val <- read_csv("./results/8-Analysis/ancombc/w_slice.csv")
+abc_path <- "./results/8-ANCOM-BC"
+ancombc_lfc <- read_csv(glue("{abc_path}/export/w_slice.csv")) %>%
+    select(.data = ., !`(Intercept)`)
+ancombc_lfc$id <- ancombc_lfc$id %>%
+    lapply(., collapse_tax, level = 5) %>%
+    unlist()
+abc_lfc <- ancombc_lfc %>%
+    pivot_longer(., -id) %>%
+    ggplot(aes(x = id, y = value, fill = name)) +
+    geom_bar(stat = "identity", position = position_dodge())
+# Log-fold change divided by standard error
+ancombc_q_val <- read_csv(glue("{abc_path}/export/w_slice.csv")) %>%
+    select(.data = ., !`(Intercept)`)
+ancombc_q_val$id <- ancombc_q_val$id %>%
+    lapply(., collapse_tax, level = 5) %>%
+    unlist()
 ```
 
 ANCOM-BC will be conducted for each site to determine which taxa are differentially abundant. The results will then

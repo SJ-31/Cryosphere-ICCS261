@@ -30,6 +30,18 @@ alpha_metrics <- list(
   fa = "APhylo_faith_pd"
 )
 
+collapse_tax <- function(taxonomy, level) {
+  ranks <- taxonomy %>%
+    str_replace_all(".__", "") %>%
+    str_split(";") %>%
+    unlist()
+  if (level > length(ranks)) {
+    return(ranks[length(ranks)])
+  } else {
+    return(ranks[level])
+  }
+}
+
 get_artifact_data <- function(path, ids, extension, metric_list) {
   # Generic import function for artifact data
   artifacts <- list()
@@ -152,8 +164,9 @@ plot_pcoa <- function(pcoa, color_by, functions, title, subtitle = NULL) {
       geom_point(
         aes(shape = .data[["Type"]]),
         size = 2,
-        stroke = 1)
-       +
+        stroke = 1
+      )
+      +
       scale_color_paletteer_d("pals::glasbey") +
       labs(x = "PC1", y = "PC2", title = title, subtitle = subtitle)
   )
