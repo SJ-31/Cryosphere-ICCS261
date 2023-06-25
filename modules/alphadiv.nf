@@ -9,7 +9,7 @@ process ALPHADIVERSITY {
     val(outdir)
     //
     output:
-    tuple val(name), path("*-A_*.qza")
+    tuple val(name), path("*-A*.qza")
     // DistanceMatrix
     shell:
     table = "${otus}/${name}-otuFreqs.qza"

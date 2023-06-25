@@ -25,8 +25,9 @@ beta_metrics <- list(
   wu = "BPhylo_weighted_unifrac"
 )
 alpha_metrics <- list(
-  sh = "shannon", pi = "pielou_e",
-  si = "simpson", se = "simpson_e"
+  sh = "A_shannon", pi = "A_pielou_e",
+  si = "A_simpson", se = "A_simpson_e",
+  fa = "APhylo_faith_pd"
 )
 
 get_artifact_data <- function(path, ids, extension, metric_list) {

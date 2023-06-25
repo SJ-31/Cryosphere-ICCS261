@@ -56,6 +56,33 @@ genus_combined <- combine_freqs(otu_genus, taxon)
 ## Diversity analyses
 
 ### Alpha diversity
+```{r}
+alpha <- get_artifact_data("./results/7-Diversity",
+    id_key,
+    extension = "",
+    metric_list = alpha_metrics
+)
+pi_evenness <- data.frame(row.names = 1:10)
+for (site in names(id_key)) {
+    pi_evenness[[id_key[[site]]]] <- alpha[[site]]$pi[, 1]
+}
+even_plot <- pi_evenness %>%
+    gather() %>%
+    ggplot(aes(x = key, y = value)) +
+    geom_boxplot(fill = "lightcoral") +
+    labs(x = "Site", y = "Evenness", title = "Pielou evenness")
+ggsave("./figures/Pielou_evenness.png", even_plot, width = 20, height = 10)
+```
+From the box plot, we can see a few of the sites having similar evenness, particularly the Barrow mountain sites, Bihor mountains and Catriona snow. Whether or not the difference in Pielou evenness is statistically significant can be tested with Kruskal wallis
+```{r}
+pi_evenness %>%
+    select(c(
+        "Barrow mountain high", "Barrow mountain low",
+        "Bihor mountains", "Catriona snow"
+    )) %>%
+    kruskal.test()
+```
+The p-value is 0.2744, so the difference in evenness is not statistically significant
 
 
 ### Beta diversity
@@ -114,12 +141,13 @@ filter_bc <- filter_dm(beta$Merged$bc, keep3)
 filtered_meta3 <- filter_meta(metadata, keep3)
 ```
 
-#### PERMANOVA
+#### PERMANOVA & ANOSIM
 Within the chosen cluster, its visually unclear whether or not the differences between sites are statistically signif
 ```{r}
 adonis2(filter_uu ~ filtered_meta$Location)
-adonis2(filter_wn ~ filtered_meta2$Location)
-adonis2(filter_bc ~ filtered_meta3$Location)
+# adonis2(filter_wn ~ filtered_meta2$Location)
+# adonis2(filter_bc ~ filtered_meta3$Location)
+anosim(filter_uu, grouping = filtered_meta$Location)
 ```
 
 ### Functional analysis
@@ -163,7 +191,6 @@ ggsave("./figures/func_vs_tax.png",
     dpi = "retina", width = 20, height = 10
 )
 ```
-
 
 ### Differential abundance analysis
 Now we will perform tests on the abundance of identified OTUs within the sites
