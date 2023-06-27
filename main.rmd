@@ -20,6 +20,49 @@ classifier consistently outperforms the traditional blast approach. Furthermore,
 
 The `known_taxon` function collapses the taxonomy table into the first identification. A similar function will be used to collapse it into at least genus identifications for use with farprotax.
 
+```{r}
+# Cleaning data for logistic regression
+all <- read_qza("./results/2-OTUs/Merged-otuFreqs.qza")$data
+sk_merged <- read_qza("./results/3-Classified/Merged-Sklearn.qza")$data %>%
+    parse_taxonomy()
+
+orders <- merge_with_id(all, sk_merged, level = 2) %>%
+    filter(!(is.na(taxon))) %>%
+    group_by(taxon) %>%
+    summarise(across(everything(), sum))
+
+to_log <- orders %>%
+    rel_abund(., taxon) %>%
+    as.data.frame() %>%
+    t() %>%
+    as.data.frame() %>%
+    rename_with(~ as.character(as.vector(orders$taxon)), all_of(colnames(.))) %>%
+    mutate(ids = rownames(.)) %>%
+    filter(!(ids == "taxon"))  %>%
+    inner_join(metadata, ., by = join_by(x$sample.id == y$ids)) %>%
+    as_tibble()
+write.csv(to_log, "logistic_reg.csv", row.names = FALSE)
+
+# Lots of false positive hits?
+not_bacteria <- c(
+    "Arthropoda", "Nanoarchaeota", "Diatomea", "Altioarchaeota",
+    "Ascomycota", "Basidiomycota", "Cercozoa", "Ciliophora"
+)
+summed <- sapply(names(id_key), function(x) {
+    rowSums(orders[, grep(x, colnames(orders)), drop = FALSE])
+}) %>%
+    as_tibble() %>%
+    mutate(taxon = orders$taxon) %>%
+    relocate(taxon) %>%
+    filter(!(grepl("[0-9]", taxon))) %>%
+    rel_abund(., taxon) %>%
+    pivot_longer(., -taxon)
+
+stacked <- summed %>% ggplot(., aes(x = name, y = value, fill = taxon)) +
+    geom_bar(stat = "identity") +
+    scale_color_paletteer_d("pals::glasbey")
+```
+
 ### Phylogenetic trees
 ```{r}
 fasttree <- get_artifact_data(
@@ -159,7 +202,7 @@ ko_all <- ko %>%
     reduce(merge, by = "function", all = TRUE) %>%
     as_tibble() %>%
     replace(is.na(.), 0) %>%
-    rel_abund() %>% # Convert to relative abundances
+    rel_abund(., `function`) %>% # Convert to relative abundances
     as_tibble() %>%
     sites_x_func() # Transpose into sites x function format
 
@@ -269,7 +312,7 @@ filtered_otus <- read_qza("./results/2-OTUs/Merged-otuFreqs.qza")$data %>%
     as.data.frame() %>%
     select(matches(keep))
 m <- merge(sk_merged, filtered_otus, by = 0)
-TODO: Drop all rows with 0s
+# TODO: Drop all rows with 0s
 filtered_otus <- m %>% select(!(matches(tax_info)))
 tax <- m %>% select(matches(c("Row.names", tax_info)))
 # tse <- TreeSummarizedExperiment(assays = list(otus = filtered_otus))

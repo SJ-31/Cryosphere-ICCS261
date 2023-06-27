@@ -69,21 +69,25 @@ for (id in names(id_key)) {
   ko[[id]] <- read_delim(glue("{path}/KO_metagenome_out/pred_metagenome_unstrat.tsv"))
 }
 
-rel_abund <- function(abs_abund) {
-  rel_abund <- data.frame(`function` = abs_abund[1])
-  for (col in 2:ncol(abs_abund)) {
-    rel_abund[colnames(abs_abund[col])] <- abs_abund[col] / sum(abs_abund[col])
-  }
-  return(rel_abund)
+rel_abund <- function(abs_abund, first_col) {
+    rel_abund <- data.frame(first_col = abs_abund[1])
+    for (col in 2:ncol(abs_abund)) {
+        rel_abund[colnames(abs_abund[col])] <- abs_abund[col] / sum(abs_abund[col])
+    }
+    return(rel_abund)
 }
 
-known_taxon <- function(row, taxonomy) {
-  # Collapse taxonomy into last known taxon
-  known_rank <- 7
-  while (is.na(taxonomy[row, known_rank]) && known_rank != 1) {
-    known_rank <- known_rank - 1
-  }
-  return(taxonomy[row, known_rank])
+known_taxon <- function(row, taxonomy, level) {
+    # Collapse taxonomy into last known taxon or specified taxonomic rank
+    if (missing(level)) {
+        known_rank <- 7
+        while (is.na(taxonomy[row, known_rank]) && known_rank != 1) {
+            known_rank <- known_rank - 1
+        }
+        return(taxonomy[row, known_rank])
+    } else {
+        return(taxonomy[row, level])
+    }
 }
 
 combine_freqs <- function(freq_list, sum_by) {
@@ -102,13 +106,16 @@ genus_level <- function(row, taxonomy) {
   return(taxonomy[row, 7])
 }
 
-merge_with_id <- function(otu_table, taxonomy) {
-  # Merge an otu table with a taxonomy table, keeping only identified taxa
-  known <- lapply(1:nrow(taxonomy), known_taxon, taxonomy = taxonomy) %>%
-    unlist() %>%
-    data.frame(row.names = rownames(taxonomy), taxon = .) %>%
-    merge(., otu_table, by = 0)
-  return(subset(known, select = -c(Row.names)))
+merge_with_id <- function(otu_table, taxonomy, level) {
+    # Merge an otu table with a taxonomy table, keeping only identified taxa
+    known <- lapply(1:nrow(taxonomy), known_taxon,
+        taxonomy = taxonomy,
+        level = level
+    ) %>%
+        unlist() %>%
+        data.frame(row.names = rownames(taxonomy), taxon = .) %>%
+        merge(., otu_table, by = 0)
+    return(subset(known, select = -c(Row.names)))
 }
 
 to_genus_csv <- function(otu_table, taxonomy) {
