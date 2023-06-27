@@ -1,5 +1,7 @@
 library(ape)
 library(ggtree)
+library(TreeSummarizedExperiment)
+library(ANCOMBC)
 library(vegan)
 library(TreeDist)
 library(phyloseq)
@@ -208,4 +210,9 @@ sites_x_func <- function(picrust_tsv2) {
     as.data.frame() %>%
     slice(-1) %>%
     mutate_all(as.numeric))
+}
+
+import_ancom <- function(result, path) {
+  return(read_csv(glue("{path}/export/{result}")) %>%
+    select(.data = ., !`(Intercept)`))
 }

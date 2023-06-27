@@ -121,8 +121,8 @@ ggsave("./figures/pcoas.png",
     dpi = "retina", width = 20, height = 10
 )
 ```
-The pcoa plots depict clearly how the choice of distance metric affects the clustering of samples. 
-- Clustering in the Bray Curtis plot represents sites sharing many of the same species and in similar abundances. The big cluster falls apart once we factor the evolutionary distance between OTUs, shown by the Unifrac metrics. 
+The pcoa plots depict clearly how the choice of distance metric affects the clustering of samples.
+- Clustering in the Bray Curtis plot represents sites sharing many of the same species and in similar abundances. The big cluster falls apart once we factor the evolutionary distance between OTUs, shown by the Unifrac metrics.
     - This implies that although some taxa are shared, the unique taxa are a evolutionary distant (essentially have very different DNA) from the shared ones.
 - Once we add weightings by abundance though, new clusters form, indicating there are many more common taxa within the groups than there are unique taxa.
 - Even partitioning sites by habitat type - glacier and permafrost, doesn't help
@@ -193,7 +193,14 @@ ggsave("./figures/func_vs_tax.png",
 ```
 
 ### Differential abundance analysis
-Now we will perform tests on the abundance of identified OTUs within the sites
+TODO: finish Now we will perform tests on the abundance of identified OTUs within the previously selected sites. I will be using the Analysis of Microbiomes with Bias correction test (ANCOM-BC), 
+The test can be thought of as ANOVA in that it identifies taxa that are differentially abundant between at least two groups across a set
+- ANCOM-BC returns five metrics for each OTU:
+    - Log fold change across different sites
+    - W-score: log fold change across different sites divided by standard error. This is ANCOM-BC's test statistic
+    - p value: whether or not the log fold change for a given OTU is statitically significant
+    - q value: the adjusted p-values
+    - Standard error
 ```r
 # Write the filtered metadata to a file for filtering
 write_delim(filtered_meta, "to_keep.tsv", delim = "\t")
@@ -225,28 +232,46 @@ qiime tools export \
 
 ```{r}
 # Import all ancombc results
+wrong_tax <- c("Unassigned", "Arthropoda", "Bacteria", "Insecta")
 abc_path <- "./results/8-ANCOM-BC"
-ancombc_lfc <- read_csv(glue("{abc_path}/export/w_slice.csv")) %>%
-    select(.data = ., !`(Intercept)`)
+# Filter by statistically significant results only
+ancombc_q_val <- import_ancom("q_val_slice.csv", abc_path)
+ancombc_se <- import_ancom("se_slice.csv", abc_path)
+all_sig <- (ancombc_q_val[, -1] < 0.05) %>%
+    apply(., 1, all)
+filtered_q <- ancombc_q_val %>% filter(all_sig)
+# Obtain log-fold change divided by standard error
+ancombc_lfc <- import_ancom("lfc_slice.csv", abc_path) %>% filter(all_sig)
 ancombc_lfc$id <- ancombc_lfc$id %>%
-    lapply(., collapse_tax, level = 5) %>%
+    lapply(., collapse_tax, level = 4) %>%
     unlist()
+ancombc_lfc <- ancombc_lfc %>%
+    group_by(id) %>%
+    summarise(across(everything(), sum)) %>%
+    filter(!(id %in% wrong_tax))
 abc_lfc <- ancombc_lfc %>%
     pivot_longer(., -id) %>%
     ggplot(aes(x = id, y = value, fill = name)) +
     geom_bar(stat = "identity", position = position_dodge())
-# Log-fold change divided by standard error
-ancombc_q_val <- read_csv(glue("{abc_path}/export/w_slice.csv")) %>%
-    select(.data = ., !`(Intercept)`)
-ancombc_q_val$id <- ancombc_q_val$id %>%
-    lapply(., collapse_tax, level = 5) %>%
-    unlist()
+# ancombc_q_val <- import_ancom("w_slice.csv", abc_path)
+# all_sig2 <- (ancombc_q_val[, -1] < 0.05) %>%
+#     apply(., 1, all)
+# ancombc_q_val <- ancombc_q_val %>% filter(all_sig2)
+# ancombc_q_val$id <- ancombc_q_val$id %>%
+#     lapply(., collapse_tax, level = 5) %>%
+#     unlist()
 ```
 
-ANCOM-BC will be conducted for each site to determine which taxa are differentially abundant. The results will then
-- ANCOM-BC returns five metrics for each OTU:
-    - Log fold change across different sites
-    - W-score: log fold change across different sites divided by standard error
-    - p value
-    - q value
-    - Standard error
+```{r}
+# Manual ancombc
+tax_info <- c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species")
+filtered_otus <- read_qza("./results/2-OTUs/Merged-otuFreqs.qza")$data %>%
+    as.data.frame() %>%
+    select(matches(keep))
+m <- merge(sk_merged, filtered_otus, by = 0)
+TODO: Drop all rows with 0s
+filtered_otus <- m %>% select(!(matches(tax_info)))
+tax <- m %>% select(matches(c("Row.names", tax_info)))
+# tse <- TreeSummarizedExperiment(assays = list(otus = filtered_otus))
+```
+
