@@ -70,24 +70,24 @@ for (id in names(id_key)) {
 }
 
 rel_abund <- function(abs_abund, first_col) {
-    rel_abund <- data.frame(first_col = abs_abund[1])
-    for (col in 2:ncol(abs_abund)) {
-        rel_abund[colnames(abs_abund[col])] <- abs_abund[col] / sum(abs_abund[col])
-    }
-    return(rel_abund)
+  rel_abund <- data.frame(first_col = abs_abund[1])
+  for (col in 2:ncol(abs_abund)) {
+    rel_abund[colnames(abs_abund[col])] <- abs_abund[col] / sum(abs_abund[col])
+  }
+  return(rel_abund)
 }
 
 known_taxon <- function(row, taxonomy, level) {
-    # Collapse taxonomy into last known taxon or specified taxonomic rank
-    if (missing(level)) {
-        known_rank <- 7
-        while (is.na(taxonomy[row, known_rank]) && known_rank != 1) {
-            known_rank <- known_rank - 1
-        }
-        return(taxonomy[row, known_rank])
-    } else {
-        return(taxonomy[row, level])
+  # Collapse taxonomy into last known taxon or specified taxonomic rank
+  if (missing(level)) {
+    known_rank <- 7
+    while (is.na(taxonomy[row, known_rank]) && known_rank != 1) {
+      known_rank <- known_rank - 1
     }
+    return(taxonomy[row, known_rank])
+  } else {
+    return(taxonomy[row, level])
+  }
 }
 
 combine_freqs <- function(freq_list, sum_by) {
@@ -107,15 +107,15 @@ genus_level <- function(row, taxonomy) {
 }
 
 merge_with_id <- function(otu_table, taxonomy, level) {
-    # Merge an otu table with a taxonomy table, keeping only identified taxa
-    known <- lapply(1:nrow(taxonomy), known_taxon,
-        taxonomy = taxonomy,
-        level = level
-    ) %>%
-        unlist() %>%
-        data.frame(row.names = rownames(taxonomy), taxon = .) %>%
-        merge(., otu_table, by = 0)
-    return(subset(known, select = -c(Row.names)))
+  # Merge an otu table with a taxonomy table, keeping only identified taxa
+  known <- lapply(1:nrow(taxonomy), known_taxon,
+    taxonomy = taxonomy,
+    level = level
+  ) %>%
+    unlist() %>%
+    data.frame(row.names = rownames(taxonomy), taxon = .) %>%
+    merge(., otu_table, by = 0)
+  return(subset(known, select = -c(Row.names)))
 }
 
 to_genus_csv <- function(otu_table, taxonomy) {
@@ -223,4 +223,17 @@ sites_x_func <- function(picrust_tsv2) {
 import_ancom <- function(result, path) {
   return(read_csv(glue("{path}/export/{result}")) %>%
     select(.data = ., !`(Intercept)`))
+}
+
+ancombc_select <- function(ancombc_results, result, tax_level, unwanted) {
+  # Select results type from ancombc results object in long format
+  selected <- ancombc_results %>%
+    select(c(1, grep(result, colnames(ancombc_results)))) %>%
+    filter(grepl(tax_level, .data$taxon)) %>%
+    filter(!(grepl(paste(unwanted, collapse = "|"), .data$taxon))) %>%
+    mutate(taxon = str_replace(taxon, glue("{tax_level}:"), "")) %>%
+    `colnames<-`(str_replace(colnames(.), result, "")) %>%
+    pivot_longer(., -taxon)
+  colnames(selected)[which(names(selected) == "value")] <- result
+  return(selected)
 }

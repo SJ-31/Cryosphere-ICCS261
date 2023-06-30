@@ -324,7 +324,8 @@ filtered_otus <- read_qza("./results/2-OTUs/Merged-otuFreqs.qza")$data %>%
     select(matches(keep))
 matched_tax <- sk_merged[match(
     rownames(filtered_otus),
-    rownames(sk_merged)), ] %>%
+    rownames(sk_merged)
+), ] %>%
     tax_table() %>%
     `colnames<-`(tax_info)
 formatted_meta <- filtered_meta[match(colnames(filtered_otus), filtered_meta$sample.id), ] %>%
@@ -338,9 +339,29 @@ my_phylo <- phyloseq(
 )
 tse <- mia::makeTreeSummarizedExperimentFromPhyloseq(my_phylo)
 # Now run the test, testing differential abundance between locations
+chosen_rank <- "Phylum"
 abc <- ancombc2(
-    data = tse, assay_name = "counts", tax_level = "Order",
+    data = tse, assay_name = "counts", tax_level = chosen_rank,
     fix_formula = "Location"
 )
 ```
 
+```{r}
+abc_res <- abc$res %>% select(-(grep("Intercept", colnames(abc$res))))
+diff_abund <- ancombc_select(abc_res, "diff_Location", chosen_rank, wrong_tax)
+se <- ancombc_select(abc_res, "se_Location", chosen_rank, wrong_tax)
+lfc <- ancombc_select(abc_res, "lfc_Location", chosen_rank, wrong_tax) %>%
+    merge(se, by = c("name", "taxon")) %>%
+    merge(diff_abund, by = c("name", "taxon")) %>%
+    mutate(diff_Location = diff_Location %>% replace(., (which(!.)), "solid"))
+abc_plot <- lfc %>%
+    ggplot(aes(x = name, y = lfc_Location, fill = taxon)) +
+    geom_bar(
+        stat = "identity", position = position_dodge(),
+        aes(linetype = .data[["diff_Location"]])
+    ) +
+    geom_errorbar(aes(
+        ymin = lfc_Location - se_Location,
+        ymax = lfc_Location + se_Location
+    ), position = position_dodge())
+```
