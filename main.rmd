@@ -26,41 +26,50 @@ all <- read_qza("./results/2-OTUs/Merged-otuFreqs.qza")$data
 sk_merged <- read_qza("./results/3-Classified/Merged-Sklearn.qza")$data %>%
     parse_taxonomy()
 
-orders <- merge_with_id(all, sk_merged, level = 2) %>%
+ranks <- merge_with_id(all, sk_merged, level = 2) %>%
     filter(!(is.na(taxon))) %>%
     group_by(taxon) %>%
     summarise(across(everything(), sum))
 
-to_log <- orders %>%
+to_log <- ranks %>%
     rel_abund(., taxon) %>%
     as.data.frame() %>%
     t() %>%
     as.data.frame() %>%
-    rename_with(~ as.character(as.vector(orders$taxon)), all_of(colnames(.))) %>%
+    rename_with(~ as.character(as.vector(ranks$taxon)), all_of(colnames(.))) %>%
     mutate(ids = rownames(.)) %>%
-    filter(!(ids == "taxon"))  %>%
+    filter(!(ids == "taxon")) %>%
     inner_join(metadata, ., by = join_by(x$sample.id == y$ids)) %>%
     as_tibble()
-write.csv(to_log, "logistic_reg.csv", row.names = FALSE)
+write.csv(to_log, "logistic_reg_order.csv", row.names = FALSE)
 
 # Lots of false positive hits?
 not_bacteria <- c(
-    "Arthropoda", "Nanoarchaeota", "Diatomea", "Altioarchaeota",
-    "Ascomycota", "Basidiomycota", "Cercozoa", "Ciliophora"
+    "Arthropoda", "Nanoarchaeota", "Diatomea", "Altiarchaeota",
+    "Ascomycota", "Basidiomycota", "Cercozoa", "Ciliophora", "Asgardarchaeota",
+    "Phragmoplastophyta", "Euryarchaeota", "Crenarchaeota"
 )
 summed <- sapply(names(id_key), function(x) {
-    rowSums(orders[, grep(x, colnames(orders)), drop = FALSE])
+    rowSums(ranks[, grep(x, colnames(ranks)), drop = FALSE])
 }) %>%
     as_tibble() %>%
-    mutate(taxon = orders$taxon) %>%
+    mutate(taxon = ranks$taxon) %>%
     relocate(taxon) %>%
     filter(!(grepl("[0-9]", taxon))) %>%
+    filter(!(grepl(paste(not_bacteria, collapse = "|"), taxon))) %>%
     rel_abund(., taxon) %>%
-    pivot_longer(., -taxon)
+    pivot_longer(., -taxon) %>%
+    mutate(name = id_key[.data$name] %>% unlist(use.names = FALSE))
 
 stacked <- summed %>% ggplot(., aes(x = name, y = value, fill = taxon)) +
     geom_bar(stat = "identity") +
-    scale_color_paletteer_d("pals::glasbey")
+    scale_color_paletteer_d("pals::glasbey") +
+    labs(
+        x = "Site", y = "Relative abundance",
+        title = "Bacterial phyla", subtitle = "*Putative phyla and false positives
+    (non-prokaryotes) removed"
+    )
+ggsave("./figures/phyla.png", stacked, width = 20, height = 10)
 ```
 
 ### Phylogenetic trees
