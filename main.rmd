@@ -317,14 +317,30 @@ abc_lfc <- ancombc_lfc %>%
 
 ```{r}
 # Manual ancombc
+# First we prepare the TreeSummarizedExperiment object
 tax_info <- c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species")
 filtered_otus <- read_qza("./results/2-OTUs/Merged-otuFreqs.qza")$data %>%
     as.data.frame() %>%
     select(matches(keep))
-m <- merge(sk_merged, filtered_otus, by = 0)
-# TODO: Drop all rows with 0s
-filtered_otus <- m %>% select(!(matches(tax_info)))
-tax <- m %>% select(matches(c("Row.names", tax_info)))
-# tse <- TreeSummarizedExperiment(assays = list(otus = filtered_otus))
+matched_tax <- sk_merged[match(
+    rownames(filtered_otus),
+    rownames(sk_merged)), ] %>%
+    tax_table() %>%
+    `colnames<-`(tax_info)
+formatted_meta <- filtered_meta[match(colnames(filtered_otus), filtered_meta$sample.id), ] %>%
+    `rownames<-`(NULL) %>%
+    column_to_rownames(., var = "sample.id") %>%
+    sample_data()
+rownames(filtered_otus) <- rownames(matched_tax)
+my_phylo <- phyloseq(
+    otu_table(filtered_otus, taxa_are_rows = TRUE), formatted_meta,
+    matched_tax
+)
+tse <- mia::makeTreeSummarizedExperimentFromPhyloseq(my_phylo)
+# Now run the test, testing differential abundance between locations
+abc <- ancombc2(
+    data = tse, assay_name = "counts", tax_level = "Order",
+    fix_formula = "Location"
+)
 ```
 
