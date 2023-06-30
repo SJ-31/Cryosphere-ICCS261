@@ -82,9 +82,10 @@ iqtree <- get_artifact_data(
     "./results/6-RootedTrees", id_key,
     "IQTREE_RootedTree"
 )
+sample_tree <- replace_tips(iqtree$GrI, sklearn$GrI) %>%
+    ggtree() + geom_tiplab(size = 3, color = "blue") +
+    geom_rootedge(rootedge = .3)
 ```
-
-
 
 ### Import frequency tables
 The frequency tables are stored in BIOM format: OTUs x sites

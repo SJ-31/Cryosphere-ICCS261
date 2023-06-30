@@ -124,7 +124,8 @@ Simply by looking at the proportion of identified, unique otus, we can see that 
 
 ```{r}
 iqtree$tip.label <- sk_known$taxon[iqtree$tip.label %in% sk_known$Row.names]
-ggtree(iqtree)
+tree <- ggtree(iqtree) + geom_tiplab(size = 3, color = "blue") +
+    geom_rootedge(rootedge = .3)
 ```
 
 ### Taxonomic analysis

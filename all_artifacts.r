@@ -130,12 +130,13 @@ to_genus_csv <- function(otu_table, taxonomy) {
   return(subset(known, select = -c(Row.names)))
 }
 
-replace_tips <- function(tree, taxonomy_frame) {
+replace_tips <- function(tree, taxonomy_frame, level) {
   # Map OTU ids to their taxonomic identifications on the tree tips
-  taxonomy_frame$known <- lapply(1:nrow(taxonomy_frame), known_taxon,
-    taxonomy = taxonomy_frame
+  known <- lapply(1:nrow(taxonomy_frame), known_taxon,
+    taxonomy = taxonomy_frame,
+    level = level
   )
-  tree$tip.label <- taxonomy_frame$known[tree$tip.label %in%
+  tree$tip.label <- known[tree$tip.label %in%
     rownames(taxonomy_frame)]
   return(tree)
 }
