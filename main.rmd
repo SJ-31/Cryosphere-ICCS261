@@ -5,15 +5,15 @@ source("./all_artifacts.r")
 ### Taxonomic classifications
 ```{r}
 blast <- lapply(
-    get_artifact_data("./results/3-Classified", id_key, "BLAST_All"),
-    parse_taxonomy
+  get_artifact_data("./results/3-Classified", id_key, "BLAST_All"),
+  parse_taxonomy
 )
 sklearn <- lapply(
-    get_artifact_data("./results/3-Classified", id_key, "Sklearn"),
-    parse_taxonomy
+  get_artifact_data("./results/3-Classified", id_key, "Sklearn"),
+  parse_taxonomy
 )
 sk_merged <- read_qza("./results/3-Classified/Merged-Sklearn.qza")$data %>%
-    parse_taxonomy()
+  parse_taxonomy()
 ```
 Simply by counting the number of NA entries in the taxonomy columns, the sklearn
 classifier consistently outperforms the traditional blast approach. Furthermore, the sklearn is faster and consumes less memory (aside from the initial training step, which I could not do)
@@ -24,75 +24,75 @@ The `known_taxon` function collapses the taxonomy table into the first identific
 # Cleaning data for logistic regression
 all <- read_qza("./results/2-OTUs/Merged-otuFreqs.qza")$data
 sk_merged <- read_qza("./results/3-Classified/Merged-Sklearn.qza")$data %>%
-    parse_taxonomy()
+  parse_taxonomy()
 
 ranks <- merge_with_id(all, sk_merged, level = 2) %>%
-    filter(!(is.na(taxon))) %>%
-    group_by(taxon) %>%
-    summarise(across(everything(), sum))
+  filter(!(is.na(taxon))) %>%
+  group_by(taxon) %>%
+  summarise(across(everything(), sum))
 
 to_log <- ranks %>%
-    rel_abund(., taxon) %>%
-    as.data.frame() %>%
-    t() %>%
-    as.data.frame() %>%
-    rename_with(~ as.character(as.vector(ranks$taxon)), all_of(colnames(.))) %>%
-    mutate(ids = rownames(.)) %>%
-    filter(!(ids == "taxon")) %>%
-    inner_join(metadata, ., by = join_by(x$sample.id == y$ids)) %>%
-    as_tibble()
+  rel_abund(., taxon) %>%
+  as.data.frame() %>%
+  t() %>%
+  as.data.frame() %>%
+  rename_with(~ as.character(as.vector(ranks$taxon)), all_of(colnames(.))) %>%
+  mutate(ids = rownames(.)) %>%
+  filter(!(ids == "taxon")) %>%
+  inner_join(metadata, ., by = join_by(x$sample.id == y$ids)) %>%
+  as_tibble()
 write.csv(to_log, "logistic_reg_order.csv", row.names = FALSE)
 
 # Lots of false positive hits?
 not_bacteria <- c(
-    "Arthropoda", "Nanoarchaeota", "Diatomea", "Altiarchaeota",
-    "Ascomycota", "Basidiomycota", "Cercozoa", "Ciliophora", "Asgardarchaeota",
-    "Phragmoplastophyta", "Euryarchaeota", "Crenarchaeota"
+  "Arthropoda", "Nanoarchaeota", "Diatomea", "Altiarchaeota",
+  "Ascomycota", "Basidiomycota", "Cercozoa", "Ciliophora", "Asgardarchaeota",
+  "Phragmoplastophyta", "Euryarchaeota", "Crenarchaeota"
 )
 summed <- sapply(names(id_key), function(x) {
-    rowSums(ranks[, grep(x, colnames(ranks)), drop = FALSE])
+  rowSums(ranks[, grep(x, colnames(ranks)), drop = FALSE])
 }) %>%
-    as_tibble() %>%
-    mutate(taxon = ranks$taxon) %>%
-    relocate(taxon) %>%
-    filter(!(grepl("[0-9]", taxon))) %>%
-    filter(!(grepl(paste(not_bacteria, collapse = "|"), taxon))) %>%
-    rel_abund(., taxon) %>%
-    pivot_longer(., -taxon) %>%
-    mutate(name = id_key[.data$name] %>% unlist(use.names = FALSE))
+  as_tibble() %>%
+  mutate(taxon = ranks$taxon) %>%
+  relocate(taxon) %>%
+  filter(!(grepl("[0-9]", taxon))) %>%
+  filter(!(grepl(paste(not_bacteria, collapse = "|"), taxon))) %>%
+  rel_abund(., taxon) %>%
+  pivot_longer(., -taxon) %>%
+  mutate(name = id_key[.data$name] %>% unlist(use.names = FALSE))
 
 stacked <- summed %>% ggplot(., aes(x = name, y = value, fill = taxon)) +
-    geom_bar(stat = "identity") +
-    scale_color_paletteer_d("pals::glasbey") +
-    labs(
-        x = "Site", y = "Relative abundance",
-        title = "Bacterial phyla", subtitle = "*Putative phyla and false positives
-    (non-prokaryotes) removed"
-    )
+geom_bar(stat = "identity") +
+scale_color_paletteer_d("pals::glasbey") +
+labs(
+  x = "Site", y = "Relative abundance",
+  title = "Bacterial phyla", subtitle = "*Putative phyla and false positives
+  (non-prokaryotes) removed"
+)
 ggsave("./figures/phyla.png", stacked, width = 20, height = 10)
 ```
 
 ### Phylogenetic trees
 ```{r}
 fasttree <- get_artifact_data(
-    "./results/6-RootedTrees", id_key,
-    "FastTree_RootedTree"
+  "./results/6-RootedTrees", id_key,
+  "FastTree_RootedTree"
 )
 iqtree <- get_artifact_data(
-    "./results/6-RootedTrees", id_key,
-    "IQTREE_RootedTree"
+  "./results/6-RootedTrees", id_key,
+  "IQTREE_RootedTree"
 )
 sample_tree <- replace_tips(iqtree$GrI, sklearn$GrI) %>%
-    ggtree() + geom_tiplab(size = 3, color = "blue") +
-    geom_rootedge(rootedge = .3)
+  ggtree() + geom_tiplab(size = 3, color = "blue") +
+geom_rootedge(rootedge = .3)
 ```
 
 ### Import frequency tables
 The frequency tables are stored in BIOM format: OTUs x sites
 ```{r}
 otu_freqs <- lapply(
-    get_artifact_data("./results/2-OTUs", id_key, "otuFreqs"),
-    as.data.frame
+  get_artifact_data("./results/2-OTUs", id_key, "otuFreqs"),
+  as.data.frame
 )
 ```
 
@@ -100,7 +100,7 @@ The following snippet maps otu ids the genus-level identifications for use with 
 ```r
 otu_genus <- list()
 for (id in names(id_key)) {
-    otu_genus[[id]] <- to_genus_csv(otu_freqs[[id]], blast[[id]])
+  otu_genus[[id]] <- to_genus_csv(otu_freqs[[id]], blast[[id]])
 }
 genus_combined <- combine_freqs(otu_genus, taxon)
 # write.csv(combined, "genus_otu_tables.csv", row.names = FALSE)
@@ -111,29 +111,29 @@ genus_combined <- combine_freqs(otu_genus, taxon)
 ### Alpha diversity
 ```{r}
 alpha <- get_artifact_data("./results/7-Diversity",
-    id_key,
-    extension = "",
-    metric_list = alpha_metrics
+  id_key,
+  extension = "",
+  metric_list = alpha_metrics
 )
 pi_evenness <- data.frame(row.names = 1:10)
 for (site in names(id_key)) {
-    pi_evenness[[id_key[[site]]]] <- alpha[[site]]$pi[, 1]
+  pi_evenness[[id_key[[site]]]] <- alpha[[site]]$pi[, 1]
 }
 even_plot <- pi_evenness %>%
-    gather() %>%
-    ggplot(aes(x = key, y = value)) +
-    geom_boxplot(fill = "lightcoral") +
-    labs(x = "Site", y = "Evenness", title = "Pielou evenness")
+  gather() %>%
+  ggplot(aes(x = key, y = value)) +
+geom_boxplot(fill = "lightcoral") +
+labs(x = "Site", y = "Evenness", title = "Pielou evenness")
 ggsave("./figures/Pielou_evenness.png", even_plot, width = 20, height = 10)
 ```
 From the box plot, we can see a few of the sites having similar evenness, particularly the Barrow mountain sites, Bihor mountains and Catriona snow. Whether or not the difference in Pielou evenness is statistically significant can be tested with Kruskal wallis
 ```{r}
 pi_evenness %>%
-    select(c(
-        "Barrow mountain high", "Barrow mountain low",
-        "Bihor mountains", "Catriona snow"
-    )) %>%
-    kruskal.test()
+  select(c(
+    "Barrow mountain high", "Barrow mountain low",
+    "Bihor mountains", "Catriona snow"
+  )) %>%
+  kruskal.test()
 ```
 The p-value is 0.2744, so the difference in evenness is not statistically significant
 
@@ -142,36 +142,36 @@ The p-value is 0.2744, so the difference in evenness is not statistically signif
 All ordination plots will be carried out with PCOA
 ```{r}
 beta <- get_artifact_data("./results/7-Diversity",
-    list(Merged = NULL),
-    extension = "",
-    metric_list = beta_metrics
+  list(Merged = NULL),
+  extension = "",
+  metric_list = beta_metrics
 )
 pcoa2D <- get_artifact_data("./results/8-Analysis",
-    list(Merged = NULL),
-    extension = "PCOA-2D_",
-    metric_list = beta_metrics
+  list(Merged = NULL),
+  extension = "PCOA-2D_",
+  metric_list = beta_metrics
 )
 pcoa2D_merged <- lapply(pcoa2D$Merged, metadata_merge_pcoa, metadata = metadata)
 pcoaja <- plot_pcoa(pcoa2D_merged$ja, "Location",
-    title = "Jaccard distance"
+  title = "Jaccard distance"
 )
 pcoabc <- plot_pcoa(pcoa2D_merged$bc, "Location",
-    title = "Bray Curtis"
+  title = "Bray Curtis"
 )
 pcoauu <- plot_pcoa(pcoa2D_merged$uu, "Location",
-    title = "Unweighted Unifrac",
+  title = "Unweighted Unifrac",
 )
 pcoawn <- plot_pcoa(pcoa2D_merged$wn, "Location",
-    title = "Weighted Normalized Unifrac ",
+  title = "Weighted Normalized Unifrac ",
 )
 pcoa_arrange <- ggarrange(pcoabc, pcoauu, pcoawn,
-    ncol = 3,
-    common.legend = TRUE,
-    legend = "right"
+  ncol = 3,
+  common.legend = TRUE,
+  legend = "right"
 )
 ggsave("./figures/pcoas.png",
-    plot = pcoa_arrange,
-    dpi = "retina", width = 20, height = 10
+  plot = pcoa_arrange,
+  dpi = "retina", width = 20, height = 10
 )
 ```
 The pcoa plots depict clearly how the choice of distance metric affects the clustering of samples.
@@ -208,40 +208,40 @@ The raw output tables here are the absolute abundances of molecular functions in
 As PICRUSt2 failed to analyze the merged dataset, I will combine the output tables from each sample.
 ```{r}
 ko_all <- ko %>%
-    # Merge the PICRUSt2 tables
-    reduce(merge, by = "function", all = TRUE) %>%
-    as_tibble() %>%
-    replace(is.na(.), 0) %>%
-    rel_abund(., `function`) %>% # Convert to relative abundances
-    as_tibble() %>%
-    sites_x_func() # Transpose into sites x function format
+  # Merge the PICRUSt2 tables
+  reduce(merge, by = "function", all = TRUE) %>%
+  as_tibble() %>%
+  replace(is.na(.), 0) %>%
+  rel_abund(., `function`) %>% # Convert to relative abundances
+  as_tibble() %>%
+  sites_x_func() # Transpose into sites x function format
 
 # Compute bray curtis distance, then plot pcoa
 bc_func <- vegdist(ko_all, method = "bray")
 pcoa_bc_func <- bc_func %>%
-    wcmdscale(k = 2) %>%
-    metadata_merge_pcoa(metadata, ., functions = TRUE)
+  wcmdscale(k = 2) %>%
+  metadata_merge_pcoa(metadata, ., functions = TRUE)
 # Compute jaccard distance
 ja_func <- vegdist(ko_all, method = "jaccard")
 pcoa_ja_func <- ja_func %>%
-    wcmdscale(k = 2) %>%
-    metadata_merge_pcoa(metadata, ., functions = TRUE)
+  wcmdscale(k = 2) %>%
+  metadata_merge_pcoa(metadata, ., functions = TRUE)
 
 # Plot and compare with ordination on taxonomy
 plot_ja_func <- plot_pcoa(pcoa_ja_func, "Location",
-    title = "Jaccard distance",
-    subtitle = "From biological functions", functions = TRUE
+  title = "Jaccard distance",
+  subtitle = "From biological functions", functions = TRUE
 )
 plot_bc_func <- plot_pcoa(pcoa_bc_func, "Location",
-    title = "Bray Curtis",
-    subtitle = "From biological functions", functions = TRUE
+  title = "Bray Curtis",
+  subtitle = "From biological functions", functions = TRUE
 )
 func_compare <- ggarrange(plot_ja_func, pcoaja, plot_bc_func, pcoabc,
-    ncol = 2, nrow = 2, common.legend = TRUE, legend = "bottom"
+  ncol = 2, nrow = 2, common.legend = TRUE, legend = "bottom"
 )
 ggsave("./figures/func_vs_tax.png",
-    plot = func_compare,
-    dpi = "retina", width = 20, height = 10
+  plot = func_compare,
+  dpi = "retina", width = 20, height = 10
 )
 ```
 
@@ -285,27 +285,26 @@ qiime tools export \
 
 ```{r}
 # Import all ancombc results
-wrong_tax <- c("Unassigned", "Arthropoda", "Bacteria", "Insecta")
 abc_path <- "./results/8-ANCOM-BC"
 # Filter by statistically significant results only
 ancombc_q_val <- import_ancom("q_val_slice.csv", abc_path)
 ancombc_se <- import_ancom("se_slice.csv", abc_path)
 all_sig <- (ancombc_q_val[, -1] < 0.05) %>%
-    apply(., 1, all)
+  apply(., 1, all)
 filtered_q <- ancombc_q_val %>% filter(all_sig)
 # Obtain log-fold change divided by standard error
 ancombc_lfc <- import_ancom("lfc_slice.csv", abc_path) %>% filter(all_sig)
 ancombc_lfc$id <- ancombc_lfc$id %>%
-    lapply(., collapse_tax, level = 4) %>%
-    unlist()
+  lapply(., collapse_tax, level = 4) %>%
+  unlist()
 ancombc_lfc <- ancombc_lfc %>%
-    group_by(id) %>%
-    summarise(across(everything(), sum)) %>%
-    filter(!(id %in% wrong_tax))
+  group_by(id) %>%
+  summarise(across(everything(), sum)) %>%
+  filter(!(id %in% wrong_tax))
 abc_lfc <- ancombc_lfc %>%
-    pivot_longer(., -id) %>%
-    ggplot(aes(x = id, y = value, fill = name)) +
-    geom_bar(stat = "identity", position = position_dodge())
+  pivot_longer(., -id) %>%
+  ggplot(aes(x = id, y = value, fill = name)) +
+geom_bar(stat = "identity", position = position_dodge())
 # ancombc_q_val <- import_ancom("w_slice.csv", abc_path)
 # all_sig2 <- (ancombc_q_val[, -1] < 0.05) %>%
 #     apply(., 1, all)
@@ -319,30 +318,35 @@ abc_lfc <- ancombc_lfc %>%
 # Manual ancombc
 # First we prepare the TreeSummarizedExperiment object
 tax_info <- c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species")
+wrong_tax <- c("Unassigned", "Arthropoda", "Bacteria", "Insecta")
+
 filtered_otus <- read_qza("./results/2-OTUs/Merged-otuFreqs.qza")$data %>%
-    as.data.frame() %>%
-    select(matches(keep))
+  as.data.frame() %>%
+  select(matches(keep))
+
 matched_tax <- sk_merged[match(
-    rownames(filtered_otus),
-    rownames(sk_merged)
+  rownames(filtered_otus),
+  rownames(sk_merged)
 ), ] %>%
-    tax_table() %>%
-    `colnames<-`(tax_info)
+  tax_table() %>%
+  `colnames<-`(tax_info)
+
 formatted_meta <- filtered_meta[match(colnames(filtered_otus), filtered_meta$sample.id), ] %>%
-    `rownames<-`(NULL) %>%
-    column_to_rownames(., var = "sample.id") %>%
-    sample_data()
+  `rownames<-`(NULL) %>%
+  column_to_rownames(., var = "sample.id") %>%
+  sample_data()
 rownames(filtered_otus) <- rownames(matched_tax)
 my_phylo <- phyloseq(
-    otu_table(filtered_otus, taxa_are_rows = TRUE), formatted_meta,
-    matched_tax
+  otu_table(filtered_otus, taxa_are_rows = TRUE), formatted_meta,
+  matched_tax
 )
+
 tse <- mia::makeTreeSummarizedExperimentFromPhyloseq(my_phylo)
 # Now run the test, testing differential abundance between locations
 chosen_rank <- "Phylum"
 abc <- ancombc2(
-    data = tse, assay_name = "counts", tax_level = chosen_rank,
-    fix_formula = "Location"
+  data = tse, assay_name = "counts", tax_level = chosen_rank,
+  fix_formula = "Location"
 )
 ```
 
@@ -351,17 +355,28 @@ abc_res <- abc$res %>% select(-(grep("Intercept", colnames(abc$res))))
 diff_abund <- ancombc_select(abc_res, "diff_Location", chosen_rank, wrong_tax)
 se <- ancombc_select(abc_res, "se_Location", chosen_rank, wrong_tax)
 lfc <- ancombc_select(abc_res, "lfc_Location", chosen_rank, wrong_tax) %>%
-    merge(se, by = c("name", "taxon")) %>%
-    merge(diff_abund, by = c("name", "taxon")) %>%
-    mutate(diff_Location = diff_Location %>% replace(., (which(!.)), "solid"))
+  merge(se, by = c("name", "taxon")) %>%
+  merge(diff_abund, by = c("name", "taxon")) %>%
+  mutate(diff_Location = diff_Location %>% replace(
+    ., (which(!.)),
+    1
+  )) %>%
+  mutate(diff_Location = diff_Location %>% replace(
+    ., grep("TRUE", .),
+    2
+  ))
 abc_plot <- lfc %>%
-    ggplot(aes(x = name, y = lfc_Location, fill = taxon)) +
-    geom_bar(
-        stat = "identity", position = position_dodge(),
-        aes(linetype = .data[["diff_Location"]])
-    ) +
-    geom_errorbar(aes(
-        ymin = lfc_Location - se_Location,
-        ymax = lfc_Location + se_Location
-    ), position = position_dodge())
+  ggplot(aes(x = name, y = lfc_Location, fill = taxon)) +
+geom_bar(
+  aes(linetype = diff_Location),
+  stat = "identity",
+  position = position_dodge()
+) +
+geom_errorbar(
+  aes(
+    ymin = lfc_Location - se_Location,
+    ymax = lfc_Location + se_Location
+  ),
+  position = position_dodge()
+)
 ```

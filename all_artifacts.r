@@ -1,4 +1,5 @@
 library(ape)
+library(ggpattern)
 library(ggtree)
 library(TreeSummarizedExperiment)
 library(ANCOMBC)
@@ -10,7 +11,6 @@ library(glue)
 library(paletteer)
 library(qiime2R)
 library(ggpubr)
-
 metadata <- read.csv("./ds_metadata.tsv", sep = "\t") %>%
   filter(!row_number() %in% c(1))
 id_key <- list(
