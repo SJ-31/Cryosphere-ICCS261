@@ -44,6 +44,22 @@ collapse_tax <- function(taxonomy, level) {
   }
 }
 
+count_identified <- function(taxonomy, name) {
+  total_ranks <- taxonomy %>%
+    lapply(., dim) %>%
+    unlist(use.names = FALSE) %>%
+    sum()
+  total_ranks <- total_ranks - (length(taxonomy) * 7)
+  identified <- taxonomy %>%
+    lapply(., is.na) %>%
+    lapply(., which) %>%
+    unlist() %>%
+    length()
+  print(total_ranks)
+  ratio <- 1 - (identified / (total_ranks * 7))
+  glue("{name}: {ratio}")
+}
+
 get_artifact_data <- function(path, ids, extension, metric_list) {
   # Generic import function for artifact data
   artifacts <- list()

@@ -2,7 +2,43 @@
 source("./all_artifacts.r")
 ```
 
-### Taxonomic classifications
+# Overview
+
+## Questions
+- How distinct are different cryospheric environments as microbial habitats?
+- What taxa are most associated with cryospheric environments? Do these differ between habitats?
+- What is the diversity of biological pathways? Will we see distinct sets of functions for each habitat?
+
+## Hypotheses
+- We will observe greater taxonomic diversity between sites than functional diversity
+- There is a limited number of adaptations that microorganisms can evolve to survive in cryospheric environments, so we should expect a signifcant degree of convergent evolution towards the same adaptive mechanisms
+- There will be a set of biological processes shared between all cryospheric ecosystems, but not found in other places
+
+# Importing data from fastq
+
+Qiime2 uses a compressed type of file format called an 'Artifact' for its analyses. Artifacts have different semantic types e.g. `FeatureData[Sequence]`, `Phylogeny[Unrooted]` depending on the type of data they contain. To begin the analysis, I need to import my fastq files into `FeatureData[SequencesWithQuality]` or `FeatureData[PairedEndSequencesWithQuality]`.
+
+Although all of these reads were prepared with Illumina devices, sequencing quality can vary between sequencing centres, meaning that each sample will likely need specific parameters for cleaning. Furthermore, two of the samples were sequenced with paired-end format. This means that I'll need to import each sample into different artifacts, merging them together once they have been cleaned. To reduce bias in sampling between sites, I have specifically looked for larger fastq files, then split them
+
+Quality $(Q)$ is commonly measured in Phred scores, denoted as $Q=-10 \log_{10}P$, where $P$ is the probability of an incorrect base call. Therefore, higher values for Phred indicate a lower probability of an erroneous base. Every base position is given a Phred score, and it is common to see the score decrease the longer the read
+
+```bash
+# Relevant commands
+qiime tools import \
+  --type 'SampleData[PairedEndSequencesWithQuality]' \
+  --input-path devon.tsv \
+  --output-path devonFQ.qza \
+  --input-format PairedEndFastqManifestPhred64V2
+
+qiime tools import \
+  --type 'SampleData[SequencesWithQuality]' \
+  --input-path neem.tsv \
+  --output-path neem.qza \
+  --input-format SingleEndFastqManifestPhred33V2
+```
+
+# Taxonomic classifications
+For sample taxonomic classification, I will be trying out all three of the methods available in qiime2:
 ```{r}
 blast <- lapply(
   get_artifact_data("./results/3-Classified", id_key, "BLAST_All"),
@@ -14,11 +50,15 @@ sklearn <- lapply(
 )
 sk_merged <- read_qza("./results/3-Classified/Merged-Sklearn.qza")$data %>%
   parse_taxonomy()
+sklearn %>%
+  lapply(., dim) %>%
+  unlist(use.names = FALSE) %>%
+  sum()
+sklearn %>% length()
+count_identified(sklearn, "Sklearn")
+count_identified(blast, "BLAST")
+# The sklearn classifier has a slightly better number of identifications so will be used for all any downstream analyses
 ```
-Simply by counting the number of NA entries in the taxonomy columns, the sklearn
-classifier consistently outperforms the traditional blast approach. Furthermore, the sklearn is faster and consumes less memory (aside from the initial training step, which I could not do)
-
-The `known_taxon` function collapses the taxonomy table into the first identification. A similar function will be used to collapse it into at least genus identifications for use with farprotax.
 
 ```{r}
 # Cleaning data for logistic regression
@@ -31,19 +71,6 @@ ranks <- merge_with_id(all, sk_merged, level = 2) %>%
   group_by(taxon) %>%
   summarise(across(everything(), sum))
 
-to_log <- ranks %>%
-  rel_abund(., taxon) %>%
-  as.data.frame() %>%
-  t() %>%
-  as.data.frame() %>%
-  rename_with(~ as.character(as.vector(ranks$taxon)), all_of(colnames(.))) %>%
-  mutate(ids = rownames(.)) %>%
-  filter(!(ids == "taxon")) %>%
-  inner_join(metadata, ., by = join_by(x$sample.id == y$ids)) %>%
-  as_tibble()
-write.csv(to_log, "logistic_reg_order.csv", row.names = FALSE)
-
-# Lots of false positive hits?
 not_bacteria <- c(
   "Arthropoda", "Nanoarchaeota", "Diatomea", "Altiarchaeota",
   "Ascomycota", "Basidiomycota", "Cercozoa", "Ciliophora", "Asgardarchaeota",
@@ -62,14 +89,81 @@ summed <- sapply(names(id_key), function(x) {
   mutate(name = id_key[.data$name] %>% unlist(use.names = FALSE))
 
 stacked <- summed %>% ggplot(., aes(x = name, y = value, fill = taxon)) +
-geom_bar(stat = "identity") +
-scale_color_paletteer_d("pals::glasbey") +
-labs(
-  x = "Site", y = "Relative abundance",
-  title = "Bacterial phyla", subtitle = "*Putative phyla and false positives
+  geom_bar(stat = "identity") +
+  scale_fill_discrete(name = "Phylum") +
+  scale_color_paletteer_d("pals::glasbey") +
+  labs(
+    x = "Site", y = "Relative abundance",
+    subtitle = "*Putative phyla and false positives
   (non-prokaryotes) removed"
-)
-ggsave("./figures/phyla.png", stacked, width = 20, height = 10)
+  )
+ggsave("./figures/phyla.png", stacked, width = 20, height = 10, dpi = 300)
+```
+While cleaning the data for the regression assignment, I noticed there were a few identifications that weren't prokaryotic. These are most likely false positives, given the specificity of the 16s rRNA primers used to sequence the samples.
+
+## Database preparation
+
+Two databases were obtained:
+
+- All annotated 16S rRNA from the NCBI ftp [website](https://ftp-ncbi-nlm-nih-gov.ejournal.mahidol.ac.th/blast/db/v5/)
+- Annotated 16S rRNA used by the tool [MicFunPred](https://github.com/microDM/MicFunPred)
+- A 16S rRNA database from [EzBioCloud](https://www.ezbiocloud.net/dashboard)
+
+The MicFunPred and NCBI databases were obtained in the standard BLAST format, and need to be converted into compatible data types for import into the qiime2 workflow. Specficially, I needed to convert them into FASTA format with an associated taxonomy mapping file (in HeaderlessTSVTaxonomyFormat)
+
+- Steps
+  - 1 Extract all entries from the database in FASTA format
+  - 2 Extract the header and convert it into the HeaderLessTSVTaxonomyFormat, which is a tab-delimited file of FASTA identifiers followed by their taxonomic assignments
+  - 3 Remove the taxonomic assignments from the original FASTA file
+  - 4 Concatenate the respective files types together, then import them files as qiime2 Artifacts
+  - 5 Repeat for the other database (if both databases used the identifier conventions I could have combined them and processed them together but unfortunately this was not the case )
+
+```bash
+# 1
+blastdbcmd -db NCBI_16S/16S_ribosomal_RNA -entry all > NCBI_16S.fasta
+blastdbcmd -db micfun/micfun16S -entry all > micfun.fasta
+
+# 2
+grep '>' NCBI_16S.fasta | tr -d '>' | sed 's/ /\t/' | sed 's/ /_/g' > NCBI_16SID.txt
+grep '>' micfun.fasta | tr -d '>' | sed 's/_/\t/' | sort | uniq > micfunID.txt # Unfortunately several of the headers repeat
+
+# 3
+cat micfun.fasta | sed 's/_.*//' > micfunID.fasta
+cat NCBI_16S.fasta | sed 's/ .*//' > ncbi16sID.fasta
+
+# 4
+cat micfunID.txt NCBI_16SID.txt EzBioCloud/ezbiocloud_id_taxonomy.txt > all_mappings.txt
+cat EzBioCloud/ezbiocloud_qiime_full.fasta ncbi16sID.fasta micfun.fasta > all.fasta
+qiime tools import     --type FeatureData[Taxonomy]     --input-format HeaderlessTSVTaxonomyFormat     --input-path all.fasta     --output-path all_fasta.qza
+qiime tools import     --type FeatureData[Taxonomy]     --input-format HeaderlessTSVTaxonomyFormat     --input-path all_uniqIDs.txt     --output-path Ids.qza
+```
+
+- Altogether, the database contains 130,122 sequences (though there might be some repetition that was overlooked)
+
+```python
+# Script for removing redundant ids
+from Bio import SeqIO
+import csv
+
+exists: set = set()
+mapped = open('all_uniq.fasta', 'w+')
+for seq in SeqIO.parse('all.fasta', 'fasta'):
+    if seq.id in exists:
+        continue
+    exists.add(seq.id)
+    mapped.write(f'>{seq.id}\n')
+    mapped.write(f'{seq.seq}\n')
+mapped.close
+
+uniq = open('all_uniqIDs.txt', 'w+')
+exists2: set = set()
+with open('all_mappings.txt', 'r') as i:
+    for id in csv.reader(i, delimiter='\t'):
+        if id[0] in exists2:
+            continue
+        exists2.add(id[0])
+        uniq.write(f'{id[0]}\t{id[1]}\n')
+uniq.close
 ```
 
 ### Phylogenetic trees
@@ -82,9 +176,17 @@ iqtree <- get_artifact_data(
   "./results/6-RootedTrees", id_key,
   "IQTREE_RootedTree"
 )
-sample_tree <- replace_tips(iqtree$GrI, sklearn$GrI) %>%
+iqtree$GrI$tip.label <- iqtree$GrI$tip.label %>%
+  seq_along() %>%
+  as.character() %>%
+  paste("OTU", ., sep = "")
+sample_tree <- iqtree$GrI %>%
   ggtree() + geom_tiplab(size = 3, color = "blue") +
-geom_rootedge(rootedge = .3)
+  geom_rootedge(rootedge = .3)
+ggsave("./figures/sample_tree.png", sample_tree,
+  width = 10, height = 10,
+  dpi = 500
+)
 ```
 
 ### Import frequency tables
@@ -103,12 +205,17 @@ for (id in names(id_key)) {
   otu_genus[[id]] <- to_genus_csv(otu_freqs[[id]], blast[[id]])
 }
 genus_combined <- combine_freqs(otu_genus, taxon)
-# write.csv(combined, "genus_otu_tables.csv", row.names = FALSE)
+write.csv(combined, "genus_otu_tables.csv", row.names = FALSE)
 ```
 
-## Diversity analyses
+# Diversity analyses
+- Unweighted "qualitative" metrics do not consider OTU abundance, telling you only about the presence and abundance of OTUs. They are more sensitive to rare OTUs
+- Weighted "quantitative" metrics consider relative OTU abundance, and are more sensitive to abundant taxa
+- Non-phylogenetic metrics assume everything is equally related to each other, so the presence of closely related species would contribute to higher diversity
+- Phylogenetic metrics take into account similarity based on evolutionary relation, resulting in better scaling for genetic distance
 
-### Alpha diversity
+
+## Alpha diversity
 ```{r}
 alpha <- get_artifact_data("./results/7-Diversity",
   id_key,
@@ -122,9 +229,9 @@ for (site in names(id_key)) {
 even_plot <- pi_evenness %>%
   gather() %>%
   ggplot(aes(x = key, y = value)) +
-geom_boxplot(fill = "lightcoral") +
-labs(x = "Site", y = "Evenness", title = "Pielou evenness")
-ggsave("./figures/Pielou_evenness.png", even_plot, width = 20, height = 10)
+  geom_boxplot(fill = "lightcoral") +
+  labs(x = "Site", y = "Evenness", title = "Pielou evenness")
+ggsave("./figures/Pielou_evenness.png", even_plot, width = 20, height = 10, dpi = 300)
 ```
 From the box plot, we can see a few of the sites having similar evenness, particularly the Barrow mountain sites, Bihor mountains and Catriona snow. Whether or not the difference in Pielou evenness is statistically significant can be tested with Kruskal wallis
 ```{r}
@@ -137,8 +244,7 @@ pi_evenness %>%
 ```
 The p-value is 0.2744, so the difference in evenness is not statistically significant
 
-
-### Beta diversity
+## Beta diversity
 All ordination plots will be carried out with PCOA
 ```{r}
 beta <- get_artifact_data("./results/7-Diversity",
@@ -171,7 +277,7 @@ pcoa_arrange <- ggarrange(pcoabc, pcoauu, pcoawn,
 )
 ggsave("./figures/pcoas.png",
   plot = pcoa_arrange,
-  dpi = "retina", width = 20, height = 10
+  dpi = 300, width = 20, height = 10
 )
 ```
 The pcoa plots depict clearly how the choice of distance metric affects the clustering of samples.
@@ -184,18 +290,23 @@ Admittedly, there is no clear consensus on what metric to choose when the result
 ```{r}
 # Filter the sites
 keep <- c("BhM", "CrC", "CaS", "CeY", "GrI", "EaI")
-keep2 <- c("ViS", "BrL", "BrH", "SvG")
-keep3 <- c("CaS", "CeY", "BhM", "EaI")
+# keep2 <- c("ViS", "BrL", "BrH", "SvG")
+# keep3 <- c("CaS", "CeY", "BhM", "EaI")
 filter_uu <- filter_dm(beta$Merged$uu, keep)
 filtered_meta <- filter_meta(metadata, keep)
-filter_wn <- filter_dm(beta$Merged$wn, keep2)
-filtered_meta2 <- filter_meta(metadata, keep2)
-filter_bc <- filter_dm(beta$Merged$bc, keep3)
-filtered_meta3 <- filter_meta(metadata, keep3)
+# filter_wn <- filter_dm(beta$Merged$wn, keep2)
+# filtered_meta2 <- filter_meta(metadata, keep2)
+# filter_bc <- filter_dm(beta$Merged$bc, keep3)
+# filtered_meta3 <- filter_meta(metadata, keep3)
 ```
 
-#### PERMANOVA & ANOSIM
+### PERMANOVA & ANOSIM
 Within the chosen cluster, its visually unclear whether or not the differences between sites are statistically signif
+ -Use PERMANOVA for analyzing beta diversity: this tests the null hypothesis that within-group distances from each group are identical to between-group distance. With this dataset, rejecting the null hypothesis and concluding that between-group distance is different from within-group distance will let us conclude that different locations do have statistically significant species distribution.
+  - PERMANOVA is a non-parametric, multivariate version of ANOVA suited for ecological data, as it has only one assumption (that the observations are independent and have similar distributions)
+  - Can think of it as a quantitative extension to viewing a pcoa plot of a distance measure: it allows you to say with confidence whether or not certain variables (in this case location) are generating a statistically significant difference between species composition
+- ANOSIM: null hypothesis is that there is no statistically significant different between total community structure based on a specified variable.
+
 ```{r}
 adonis2(filter_uu ~ filtered_meta$Location)
 # adonis2(filter_wn ~ filtered_meta2$Location)
@@ -203,7 +314,7 @@ adonis2(filter_uu ~ filtered_meta$Location)
 anosim(filter_uu, grouping = filtered_meta$Location)
 ```
 
-### Functional analysis
+# Functional analysis
 The raw output tables here are the absolute abundances of molecular functions in each site using the KEGG Orthology database (KO). PICRUSt2 integrates with other databases, such as Enzyme Commission numbers (EC), but I've chosen to use the KO database because the PICRUSt2 authors describe how they've improved on the database integration compared to PICRUSt1.
 As PICRUSt2 failed to analyze the merged dataset, I will combine the output tables from each sample.
 ```{r}
@@ -241,12 +352,16 @@ func_compare <- ggarrange(plot_ja_func, pcoaja, plot_bc_func, pcoabc,
 )
 ggsave("./figures/func_vs_tax.png",
   plot = func_compare,
-  dpi = "retina", width = 20, height = 10
+  dpi = 300, width = 20, height = 10
 )
 ```
 
-### Differential abundance analysis
+# Differential abundance analysis
 TODO: finish Now we will perform tests on the abundance of identified OTUs within the previously selected sites. I will be using the Analysis of Microbiomes with Bias correction test (ANCOM-BC), 
+Differential abundance analysis: this refers to identifying which taxa or otus are more or less present between different samples. Traditional statistical tests are inappropriate for this application because the data is sparse
+- ANCOM volcano plot interpretation
+  - ANCOM works by essentially doing a pairwise comparisons of the abundance of a given species in one sample vs a another sample
+  - The W value for the *i*th species is the number of times that the null hypothesis is rejected for that species _i_. We can simply interpret higher W values to mean that a specie is more abundant than others.
 The test can be thought of as ANOVA in that it identifies taxa that are differentially abundant between at least two groups across a set
 - ANCOM-BC returns five metrics for each OTU:
     - Log fold change across different sites
@@ -254,65 +369,6 @@ The test can be thought of as ANOVA in that it identifies taxa that are differen
     - p value: whether or not the log fold change for a given OTU is statitically significant
     - q value: the adjusted p-values
     - Standard error
-```r
-# Write the filtered metadata to a file for filtering
-write_delim(filtered_meta, "to_keep.tsv", delim = "\t")
-```
-```bash
-# One of the assumptions that ANCOM-BC makes is that fewer than 25% of OTUs are changing between groups, so as with ANOSIM and PERMANOVA, we keep only the sites that appear close together through beta diversity
-qiime feature-table filter-samples \
---i-table 2-OTUs/Merged-otuFreqs.qza \
---m-metadata-file ../to_keep.tsv \
---o-filtered-table 8-ANCOM-BC/Merged_filtered-otuFreqs.qza
-
-# Collapse into the taxonomy into order-level identifications
-qiime taxa collapse \
---i-table 8-ANCOM-BC/Merged_filtered-otuFreqs.qza \
---i-taxonomy 3-Classified/Merged-Sklearn.qza \
---p-level 4 \
---o-collapsed-table 8-ANCOM-BC/Merged_collapsed-otuFreqs.qza
-
-qiime composition ancombc \
---i-table 8-ANCOM-BC/Merged_collapsed-otuFreqs.qza \
---m-metadata-file ../ds_metadata.tsv \
---p-formula Location \
---o-differentials 8-ANCOM-BC/Merged-ancombc.qza
-
-qiime tools export \
---input-path 8-ANCOM-BC/Merged-ancombc.qza \
---outpath-path 8-ANCOM-BC/export
-```
-
-```{r}
-# Import all ancombc results
-abc_path <- "./results/8-ANCOM-BC"
-# Filter by statistically significant results only
-ancombc_q_val <- import_ancom("q_val_slice.csv", abc_path)
-ancombc_se <- import_ancom("se_slice.csv", abc_path)
-all_sig <- (ancombc_q_val[, -1] < 0.05) %>%
-  apply(., 1, all)
-filtered_q <- ancombc_q_val %>% filter(all_sig)
-# Obtain log-fold change divided by standard error
-ancombc_lfc <- import_ancom("lfc_slice.csv", abc_path) %>% filter(all_sig)
-ancombc_lfc$id <- ancombc_lfc$id %>%
-  lapply(., collapse_tax, level = 4) %>%
-  unlist()
-ancombc_lfc <- ancombc_lfc %>%
-  group_by(id) %>%
-  summarise(across(everything(), sum)) %>%
-  filter(!(id %in% wrong_tax))
-abc_lfc <- ancombc_lfc %>%
-  pivot_longer(., -id) %>%
-  ggplot(aes(x = id, y = value, fill = name)) +
-geom_bar(stat = "identity", position = position_dodge())
-# ancombc_q_val <- import_ancom("w_slice.csv", abc_path)
-# all_sig2 <- (ancombc_q_val[, -1] < 0.05) %>%
-#     apply(., 1, all)
-# ancombc_q_val <- ancombc_q_val %>% filter(all_sig2)
-# ancombc_q_val$id <- ancombc_q_val$id %>%
-#     lapply(., collapse_tax, level = 5) %>%
-#     unlist()
-```
 
 ```{r}
 # Manual ancombc
@@ -343,7 +399,7 @@ my_phylo <- phyloseq(
 
 tse <- mia::makeTreeSummarizedExperimentFromPhyloseq(my_phylo)
 # Now run the test, testing differential abundance between locations
-chosen_rank <- "Phylum"
+chosen_rank <- "Class"
 abc <- ancombc2(
   data = tse, assay_name = "counts", tax_level = chosen_rank,
   fix_formula = "Location"
@@ -357,26 +413,31 @@ se <- ancombc_select(abc_res, "se_Location", chosen_rank, wrong_tax)
 lfc <- ancombc_select(abc_res, "lfc_Location", chosen_rank, wrong_tax) %>%
   merge(se, by = c("name", "taxon")) %>%
   merge(diff_abund, by = c("name", "taxon")) %>%
-  mutate(diff_Location = diff_Location %>% replace(
-    ., (which(!.)),
-    1
-  )) %>%
-  mutate(diff_Location = diff_Location %>% replace(
-    ., grep("TRUE", .),
-    2
-  ))
+  filter(diff_Location == TRUE)
+# mutate(diff_Location = diff_Location %>% replace(
+#   ., (which(!.)),
+#   1
+# )) %>%
+# mutate(diff_Location = diff_Location %>% replace(
+#   ., grep("TRUE", .),
+#   2
+# ))
+percent_abund <- dim(lfc)[1] / dim(se)[1]
+message(glue("Percent of differentially abundant {chosen_rank}: {percent_abund}"))
 abc_plot <- lfc %>%
   ggplot(aes(x = name, y = lfc_Location, fill = taxon)) +
-geom_bar(
-  aes(linetype = diff_Location),
-  stat = "identity",
-  position = position_dodge()
-) +
-geom_errorbar(
-  aes(
-    ymin = lfc_Location - se_Location,
-    ymax = lfc_Location + se_Location
-  ),
-  position = position_dodge()
-)
+  geom_bar(
+    stat = "identity",
+    position = position_dodge()
+  ) +
+  geom_errorbar(
+    aes(
+      ymin = lfc_Location - se_Location,
+      ymax = lfc_Location + se_Location
+    ),
+    position = position_dodge()
+  )
+abc_plot
 ```
+
+# References
