@@ -55,7 +55,6 @@ count_identified <- function(taxonomy, name) {
     lapply(., which) %>%
     unlist() %>%
     length()
-  print(total_ranks)
   ratio <- 1 - (identified / (total_ranks * 7))
   glue("{name}: {ratio}")
 }
@@ -82,7 +81,7 @@ get_artifact_data <- function(path, ids, extension, metric_list) {
 ko <- list()
 for (id in names(id_key)) {
   path <- glue("./results/3-FunctionAnnotation/{id}_PICRUST2")
-  ko[[id]] <- read_delim(glue("{path}/KO_metagenome_out/pred_metagenome_unstrat.tsv"))
+  ko[[id]] <- read_delim(glue("{path}/pathways_out/path_abun_unstrat.tsv"))
 }
 
 rel_abund <- function(abs_abund, first_col) {
@@ -243,13 +242,53 @@ import_ancom <- function(result, path) {
 
 ancombc_select <- function(ancombc_results, result, tax_level, unwanted) {
   # Select results type from ancombc results object in long format
-  selected <- ancombc_results %>%
-    select(c(1, grep(result, colnames(ancombc_results)))) %>%
-    filter(grepl(tax_level, .data$taxon)) %>%
-    filter(!(grepl(paste(unwanted, collapse = "|"), .data$taxon))) %>%
+  select <- ancombc_results %>%
+    select(c(1, grep(result, colnames(ancombc_results))))
+  if (!(missing(tax_level)) || !(missing(unwanted))) {
+    select <- select %>%
+      filter(grepl(tax_level, .data$taxon)) %>%
+      filter(!(grepl(paste(unwanted, collapse = "|"), .data$taxon)))
+  } else {
+    tax_level <- NaN
+  }
+  selected <- select %>%
     mutate(taxon = str_replace(taxon, glue("{tax_level}:"), "")) %>%
     `colnames<-`(str_replace(colnames(.), result, "")) %>%
     pivot_longer(., -taxon)
   colnames(selected)[which(names(selected) == "value")] <- result
   return(selected)
+}
+
+
+sum_by_site <- function(freq_table, id_key, id_col, unwanted) {
+  summed <- sapply(names(id_key), function(x) {
+    rowSums(freq_table[, grep(x, colnames(freq_table)), drop = FALSE])
+  }) %>%
+    as_tibble() %>%
+    mutate(identifier = freq_table[[id_col]]) %>%
+    relocate(identifier) %>%
+    filter(!(grepl("[0-9]", identifier))) %>%
+    filter(!(grepl(paste(unwanted, collapse = "|"), identifier))) %>%
+    rel_abund(., identifier) %>%
+    pivot_longer(., -identifier) %>%
+    mutate(name = id_key[.data$name] %>% unlist(use.names = FALSE))
+  return(summed)
+}
+
+abc_lfc_plot <- function(abc_lfc) {
+  plot <- abc_lfc %>%
+    filter(!(grepl("[0-9]", taxon))) %>%
+    ggplot(aes(x = name, y = lfc_Location, fill = taxon)) +
+    geom_bar(
+      stat = "identity",
+      position = position_dodge()
+    ) +
+    geom_errorbar(
+      aes(
+        ymin = lfc_Location - se_Location,
+        ymax = lfc_Location + se_Location
+      ),
+      position = position_dodge()
+    )
+  return(plot)
 }

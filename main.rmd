@@ -1,4 +1,5 @@
 ```{r}
+knitr::opts_chunk$set(eval = FALSE)
 source("./all_artifacts.r")
 ```
 
@@ -40,6 +41,7 @@ qiime tools import \
 # Taxonomic classifications
 For sample taxonomic classification, I will be trying out all three of the methods available in qiime2:
 ```{r}
+knitr::opts_chunk$set(eval = FALSE)
 blast <- lapply(
   get_artifact_data("./results/3-Classified", id_key, "BLAST_All"),
   parse_taxonomy
@@ -54,52 +56,11 @@ sklearn %>%
   lapply(., dim) %>%
   unlist(use.names = FALSE) %>%
   sum()
-sklearn %>% length()
+sk_merged %>% dim()
 count_identified(sklearn, "Sklearn")
 count_identified(blast, "BLAST")
 # The sklearn classifier has a slightly better number of identifications so will be used for all any downstream analyses
 ```
-
-```{r}
-# Cleaning data for logistic regression
-all <- read_qza("./results/2-OTUs/Merged-otuFreqs.qza")$data
-sk_merged <- read_qza("./results/3-Classified/Merged-Sklearn.qza")$data %>%
-  parse_taxonomy()
-
-ranks <- merge_with_id(all, sk_merged, level = 2) %>%
-  filter(!(is.na(taxon))) %>%
-  group_by(taxon) %>%
-  summarise(across(everything(), sum))
-
-not_bacteria <- c(
-  "Arthropoda", "Nanoarchaeota", "Diatomea", "Altiarchaeota",
-  "Ascomycota", "Basidiomycota", "Cercozoa", "Ciliophora", "Asgardarchaeota",
-  "Phragmoplastophyta", "Euryarchaeota", "Crenarchaeota"
-)
-summed <- sapply(names(id_key), function(x) {
-  rowSums(ranks[, grep(x, colnames(ranks)), drop = FALSE])
-}) %>%
-  as_tibble() %>%
-  mutate(taxon = ranks$taxon) %>%
-  relocate(taxon) %>%
-  filter(!(grepl("[0-9]", taxon))) %>%
-  filter(!(grepl(paste(not_bacteria, collapse = "|"), taxon))) %>%
-  rel_abund(., taxon) %>%
-  pivot_longer(., -taxon) %>%
-  mutate(name = id_key[.data$name] %>% unlist(use.names = FALSE))
-
-stacked <- summed %>% ggplot(., aes(x = name, y = value, fill = taxon)) +
-  geom_bar(stat = "identity") +
-  scale_fill_discrete(name = "Phylum") +
-  scale_color_paletteer_d("pals::glasbey") +
-  labs(
-    x = "Site", y = "Relative abundance",
-    subtitle = "*Putative phyla and false positives
-  (non-prokaryotes) removed"
-  )
-ggsave("./figures/phyla.png", stacked, width = 20, height = 10, dpi = 300)
-```
-While cleaning the data for the regression assignment, I noticed there were a few identifications that weren't prokaryotic. These are most likely false positives, given the specificity of the 16s rRNA primers used to sequence the samples.
 
 ## Database preparation
 
@@ -168,6 +129,11 @@ uniq.close
 
 ### Phylogenetic trees
 ```{r}
+knitr::opts_chunk$set(eval = FALSE)
+otu_freqs <- lapply(
+  get_artifact_data("./results/2-OTUs", id_key, "otuFreqs"),
+  as.data.frame
+)
 fasttree <- get_artifact_data(
   "./results/6-RootedTrees", id_key,
   "FastTree_RootedTree"
@@ -176,13 +142,17 @@ iqtree <- get_artifact_data(
   "./results/6-RootedTrees", id_key,
   "IQTREE_RootedTree"
 )
-iqtree$GrI$tip.label <- iqtree$GrI$tip.label %>%
-  seq_along() %>%
-  as.character() %>%
-  paste("OTU", ., sep = "")
+matched <- match(iqtree$GrI$tip.label, rownames(otu_freqs$GrI))
+freq_mapping <- otu_freqs$GrI[matched, ] %>%
+  rowMeans() %>%
+  as.data.frame() %>%
+  `rownames<-`(seq_along(rownames(.)) %>% paste("OTU", ., sep = ""))
+iqtree$GrI$tip.label <- paste(rownames(freq_mapping), "freq =", freq_mapping[[1]])
 sample_tree <- iqtree$GrI %>%
-  ggtree() + geom_tiplab(size = 3, color = "blue") +
-  geom_rootedge(rootedge = .3)
+  ggtree(layout = "roundrect", aes(color = "#A4E473")) +
+  geom_tiplab(size = 3, color = "#004651") +
+  geom_tippoint(color = "#66CC8A")
+sample_tree
 ggsave("./figures/sample_tree.png", sample_tree,
   width = 10, height = 10,
   dpi = 500
@@ -190,13 +160,6 @@ ggsave("./figures/sample_tree.png", sample_tree,
 ```
 
 ### Import frequency tables
-The frequency tables are stored in BIOM format: OTUs x sites
-```{r}
-otu_freqs <- lapply(
-  get_artifact_data("./results/2-OTUs", id_key, "otuFreqs"),
-  as.data.frame
-)
-```
 
 The following snippet maps otu ids the genus-level identifications for use with the farprotax database, writing csv files for each.
 ```r
@@ -217,6 +180,7 @@ write.csv(combined, "genus_otu_tables.csv", row.names = FALSE)
 
 ## Alpha diversity
 ```{r}
+knitr::opts_chunk$set(eval = FALSE)
 alpha <- get_artifact_data("./results/7-Diversity",
   id_key,
   extension = "",
@@ -235,6 +199,7 @@ ggsave("./figures/Pielou_evenness.png", even_plot, width = 20, height = 10, dpi 
 ```
 From the box plot, we can see a few of the sites having similar evenness, particularly the Barrow mountain sites, Bihor mountains and Catriona snow. Whether or not the difference in Pielou evenness is statistically significant can be tested with Kruskal wallis
 ```{r}
+knitr::opts_chunk$set(eval = FALSE)
 pi_evenness %>%
   select(c(
     "Barrow mountain high", "Barrow mountain low",
@@ -247,6 +212,7 @@ The p-value is 0.2744, so the difference in evenness is not statistically signif
 ## Beta diversity
 All ordination plots will be carried out with PCOA
 ```{r}
+knitr::opts_chunk$set(eval = FALSE)
 beta <- get_artifact_data("./results/7-Diversity",
   list(Merged = NULL),
   extension = "",
@@ -288,52 +254,59 @@ The pcoa plots depict clearly how the choice of distance metric affects the clus
 
 Admittedly, there is no clear consensus on what metric to choose when the results disagree strongly with each other. For the scope of this project, I will focusing the rest of the analyses only on the cluster depicted in the unweighted unifrac plot consisting of Cryoconite, Bihor Mountain caves, Yakutia, East Iceland glaciers, Catriona snow, and Greenland ice.
 ```{r}
+knitr::opts_chunk$set(eval = FALSE)
 # Filter the sites
-keep <- c("BhM", "CrC", "CaS", "CeY", "GrI", "EaI")
-# keep2 <- c("ViS", "BrL", "BrH", "SvG")
-# keep3 <- c("CaS", "CeY", "BhM", "EaI")
-filter_uu <- filter_dm(beta$Merged$uu, keep)
+# keep <- c("BhM", "CrC", "CaS", "CeY", "GrI", "EaI")
+keep <- c("ViS", "BrL", "BrH", "SvG")
+# keep <- c("CaS", "CeY", "BhM", "EaI")
+# filter_uu <- filter_dm(beta$Merged$uu, keep)
+filter_wn <- filter_dm(beta$Merged$wn, keep)
+# filter_bc <- filter_dm(beta$Merged$bc, keep)
 filtered_meta <- filter_meta(metadata, keep)
-# filter_wn <- filter_dm(beta$Merged$wn, keep2)
-# filtered_meta2 <- filter_meta(metadata, keep2)
-# filter_bc <- filter_dm(beta$Merged$bc, keep3)
-# filtered_meta3 <- filter_meta(metadata, keep3)
 ```
 
 ### PERMANOVA & ANOSIM
-Within the chosen cluster, its visually unclear whether or not the differences between sites are statistically signif
- -Use PERMANOVA for analyzing beta diversity: this tests the null hypothesis that within-group distances from each group are identical to between-group distance. With this dataset, rejecting the null hypothesis and concluding that between-group distance is different from within-group distance will let us conclude that different locations do have statistically significant species distribution.
-  - PERMANOVA is a non-parametric, multivariate version of ANOVA suited for ecological data, as it has only one assumption (that the observations are independent and have similar distributions)
-  - Can think of it as a quantitative extension to viewing a pcoa plot of a distance measure: it allows you to say with confidence whether or not certain variables (in this case location) are generating a statistically significant difference between species composition
-- ANOSIM: null hypothesis is that there is no statistically significant different between total community structure based on a specified variable.
+Within the chosen cluster, its visually unclear whether or not the differences between sites are significant. There are specific hypothesis tests for this problem, such as Permutational Analysis of Variance (PERMANOVA) and Analysis of Similarities (ANOSIM)
+
+They can be thought of as quantitative extensions to ordination plots of a distance measure: it allows you to say with confidence whether or not certain variables (in this case location) are generating a statistically significant difference between species composition
+
+Both PERMANOVA and ANOSIM test the null hypothesis that within-group distances from each group are identical to between-group distance. With this dataset, rejecting the null hypothesis and concluding that between-group distance is different from within-group distance will let us conclude that different locations do have statistically significant species distribution.
+- The difference between them is...
+TODO:what is the difference between them?
 
 ```{r}
-adonis2(filter_uu ~ filtered_meta$Location)
-# adonis2(filter_wn ~ filtered_meta2$Location)
-# adonis2(filter_bc ~ filtered_meta3$Location)
-anosim(filter_uu, grouping = filtered_meta$Location)
+knitr::opts_chunk$set(eval = FALSE)
+# adonis2(filter_uu ~ filtered_meta$Location)
+adonis2(filter_wn ~ filtered_meta$Location)
+# adonis2(filter_bc ~ filtered_meta$Location)
+# anosim(filter_uu, grouping = filtered_meta$Location)
+anosim(filter_wn, grouping = filtered_meta$Location)
 ```
 
 # Functional analysis
-The raw output tables here are the absolute abundances of molecular functions in each site using the KEGG Orthology database (KO). PICRUSt2 integrates with other databases, such as Enzyme Commission numbers (EC), but I've chosen to use the KO database because the PICRUSt2 authors describe how they've improved on the database integration compared to PICRUSt1.
-As PICRUSt2 failed to analyze the merged dataset, I will combine the output tables from each sample.
+The raw output tables here are the absolute abundances of predicted biological pathways in each site using the KEGG Orthology database (KO). PICRUSt2 integrates with other databases, such as Enzyme Commission numbers (EC), but I've chosen to use the KO database because the PICRUSt2 authors describe how they've improved on the database integration compared to PICRUSt1.
+- Originally I had planned to use the farprotax database, but the script the authors provided didn't work.
+- I encountered another problem where PICRUSt2 failed to analyze the merged dataset so I had to combine the output tables from each sample.
+
 ```{r}
+knitr::opts_chunk$set(eval = FALSE)
 ko_all <- ko %>%
   # Merge the PICRUSt2 tables
-  reduce(merge, by = "function", all = TRUE) %>%
+  reduce(merge, by = "pathway", all = TRUE) %>%
   as_tibble() %>%
   replace(is.na(.), 0) %>%
-  rel_abund(., `function`) %>% # Convert to relative abundances
-  as_tibble() %>%
-  sites_x_func() # Transpose into sites x function format
+  rel_abund(., pathway) %>% # Convert to relative abundances
+  as_tibble()
+
+ko_xfunc <- ko_all %>% sites_x_func() # Transpose into sites x function format
 
 # Compute bray curtis distance, then plot pcoa
-bc_func <- vegdist(ko_all, method = "bray")
+bc_func <- vegdist(ko_xfunc, method = "bray")
 pcoa_bc_func <- bc_func %>%
   wcmdscale(k = 2) %>%
   metadata_merge_pcoa(metadata, ., functions = TRUE)
 # Compute jaccard distance
-ja_func <- vegdist(ko_all, method = "jaccard")
+ja_func <- vegdist(ko_xfunc, method = "jaccard")
 pcoa_ja_func <- ja_func %>%
   wcmdscale(k = 2) %>%
   metadata_merge_pcoa(metadata, ., functions = TRUE)
@@ -341,11 +314,11 @@ pcoa_ja_func <- ja_func %>%
 # Plot and compare with ordination on taxonomy
 plot_ja_func <- plot_pcoa(pcoa_ja_func, "Location",
   title = "Jaccard distance",
-  subtitle = "From biological functions", functions = TRUE
+  subtitle = "From biological pathways", functions = TRUE
 )
 plot_bc_func <- plot_pcoa(pcoa_bc_func, "Location",
   title = "Bray Curtis",
-  subtitle = "From biological functions", functions = TRUE
+  subtitle = "From biological pathways", functions = TRUE
 )
 func_compare <- ggarrange(plot_ja_func, pcoaja, plot_bc_func, pcoabc,
   ncol = 2, nrow = 2, common.legend = TRUE, legend = "bottom"
@@ -357,21 +330,63 @@ ggsave("./figures/func_vs_tax.png",
 ```
 
 # Differential abundance analysis
-TODO: finish Now we will perform tests on the abundance of identified OTUs within the previously selected sites. I will be using the Analysis of Microbiomes with Bias correction test (ANCOM-BC), 
-Differential abundance analysis: this refers to identifying which taxa or otus are more or less present between different samples. Traditional statistical tests are inappropriate for this application because the data is sparse
-- ANCOM volcano plot interpretation
-  - ANCOM works by essentially doing a pairwise comparisons of the abundance of a given species in one sample vs a another sample
-  - The W value for the *i*th species is the number of times that the null hypothesis is rejected for that species _i_. We can simply interpret higher W values to mean that a specie is more abundant than others.
-The test can be thought of as ANOVA in that it identifies taxa that are differentially abundant between at least two groups across a set
-- ANCOM-BC returns five metrics for each OTU:
-    - Log fold change across different sites
-    - W-score: log fold change across different sites divided by standard error. This is ANCOM-BC's test statistic
-    - p value: whether or not the log fold change for a given OTU is statitically significant
-    - q value: the adjusted p-values
-    - Standard error
+Finally, I will perform tests on the abundance of identified OTUs and the predicted pathways in the previously selected sites. Differential abundance analysis this refers to identifying which otus are more or less present between different samples. Traditional statistical tests are inappropriate for this application generally because the data is so sparse.
+
+I will be using the Analysis of Microbiomes with Bias correction test (ANCOM-BC). To get an idea of what to expect from the test, I'll produce a bar plot depicting the relative phylum-level abundances between the sites.
 
 ```{r}
-# Manual ancombc
+knitr::opts_chunk$set(eval = FALSE)
+all <- read_qza("./results/2-OTUs/Merged-otuFreqs.qza")$data
+sk_merged <- read_qza("./results/3-Classified/Merged-Sklearn.qza")$data %>%
+  parse_taxonomy()
+
+ranks <- merge_with_id(all, sk_merged, level = 2) %>%
+  filter(!(is.na(taxon))) %>%
+  group_by(taxon) %>%
+  summarise(across(everything(), sum))
+
+not_bacteria <- c(
+  "Arthropoda", "Nanoarchaeota", "Diatomea", "Altiarchaeota",
+  "Ascomycota", "Basidiomycota", "Cercozoa", "Ciliophora", "Asgardarchaeota",
+  "Phragmoplastophyta", "Euryarchaeota", "Crenarchaeota"
+)
+
+# chosen_paths <-c("chlorophyll-syn", "glycolysis", "tca", "")
+nice_paths <- ko_all %>%
+  filter(!(grepl("[0-9]", pathway)))
+
+tax_sum <- sum_by_site(ranks, id_key, "taxon", not_bacteria)
+path_sum <- sum_by_site(nice_paths, id_key, "pathway", NaN)
+
+stacked <- tax_sum %>% ggplot(., aes(x = name, y = value, fill = identifier)) +
+  geom_bar(stat = "identity") +
+  scale_fill_discrete(name = "Phylum") +
+  scale_color_paletteer_d("pals::glasbey") +
+  labs(
+    x = "Site", y = "Relative abundance",
+    subtitle = "*Putative phyla and false positives
+  (non-prokaryotes) removed"
+  )
+stacked_paths
+ggsave("./figures/phyla.png", stacked, width = 20, height = 10, dpi = 300)
+
+stacked_paths <- path_sum %>% ggplot(., aes(x = name, y = value, fill = identifier)) +
+  geom_bar(stat = "identity") +
+  scale_fill_discrete(name = "Pathways") +
+  scale_color_paletteer_d("pals::glasbey") +
+  labs(
+    x = "Site", y = "Relative abundance",
+  )
+ggsave("./figures/path_plot.png", stacked_paths, width = 20, height = 10, dpi = 300)
+```
+Going to the second-most inclusive taxonomic rank was essential here, given that there are 10668 OTUs total. Still, I noticed there were a few identifications that weren't prokaryotic. These are most likely false positives, given the specificity of the 16s rRNA primers used to sequence the samples.
+
+From the plot, the
+TODO:Which look abundant?
+
+There wouldn't be much point to testing differential abundance for sites that we already know to be similar based on the weighted unifrac plots, so I stuck with the cluster of sites that ANOSIM and PERMANOVA were conducted on
+```{r}
+knitr::opts_chunk$set(eval = FALSE)
 # First we prepare the TreeSummarizedExperiment object
 tax_info <- c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species")
 wrong_tax <- c("Unassigned", "Arthropoda", "Bacteria", "Insecta")
@@ -380,6 +395,18 @@ filtered_otus <- read_qza("./results/2-OTUs/Merged-otuFreqs.qza")$data %>%
   as.data.frame() %>%
   select(matches(keep))
 
+chosen_paths <- ko_all %>%
+  select(c(1, matches(keep))) %>%
+  column_to_rownames(., var = "pathway")
+formatted_meta_paths <- filtered_meta[match(colnames(chosen_paths), filtered_meta$sample.id), ] %>%
+  `rownames<-`(NULL) %>%
+  column_to_rownames(., var = "sample.id") %>%
+  sample_data()
+phylo_path <- phyloseq(
+  otu_table(chosen_paths, taxa_are_rows = TRUE),
+  formatted_meta_paths
+)
+
 matched_tax <- sk_merged[match(
   rownames(filtered_otus),
   rownames(sk_merged)
@@ -387,6 +414,8 @@ matched_tax <- sk_merged[match(
   tax_table() %>%
   `colnames<-`(tax_info)
 
+# All of this is necessary because the TSE object won't be
+#   created properly unless the indices of the rownames match precisely
 formatted_meta <- filtered_meta[match(colnames(filtered_otus), filtered_meta$sample.id), ] %>%
   `rownames<-`(NULL) %>%
   column_to_rownames(., var = "sample.id") %>%
@@ -399,14 +428,22 @@ my_phylo <- phyloseq(
 
 tse <- mia::makeTreeSummarizedExperimentFromPhyloseq(my_phylo)
 # Now run the test, testing differential abundance between locations
+tse_paths <- mia::makeTreeSummarizedExperimentFromPhyloseq(phylo_path)
 chosen_rank <- "Class"
 abc <- ancombc2(
   data = tse, assay_name = "counts", tax_level = chosen_rank,
   fix_formula = "Location"
 )
+
+abc_paths <- ancombc2(
+  data = tse_paths, assay_name = "counts", tax_level = "Species",
+  fix_formula = "Location"
+)
 ```
 
+### Plotting taxonomy
 ```{r}
+knitr::opts_chunk$set(eval = FALSE)
 abc_res <- abc$res %>% select(-(grep("Intercept", colnames(abc$res))))
 diff_abund <- ancombc_select(abc_res, "diff_Location", chosen_rank, wrong_tax)
 se <- ancombc_select(abc_res, "se_Location", chosen_rank, wrong_tax)
@@ -414,30 +451,40 @@ lfc <- ancombc_select(abc_res, "lfc_Location", chosen_rank, wrong_tax) %>%
   merge(se, by = c("name", "taxon")) %>%
   merge(diff_abund, by = c("name", "taxon")) %>%
   filter(diff_Location == TRUE)
-# mutate(diff_Location = diff_Location %>% replace(
-#   ., (which(!.)),
-#   1
-# )) %>%
-# mutate(diff_Location = diff_Location %>% replace(
-#   ., grep("TRUE", .),
-#   2
-# ))
 percent_abund <- dim(lfc)[1] / dim(se)[1]
+
 message(glue("Percent of differentially abundant {chosen_rank}: {percent_abund}"))
-abc_plot <- lfc %>%
-  ggplot(aes(x = name, y = lfc_Location, fill = taxon)) +
-  geom_bar(
-    stat = "identity",
-    position = position_dodge()
-  ) +
-  geom_errorbar(
-    aes(
-      ymin = lfc_Location - se_Location,
-      ymax = lfc_Location + se_Location
-    ),
-    position = position_dodge()
-  )
-abc_plot
+abc_plot <- abc_lfc_plot(lfc)
+ggsave("./figures/abc_tax.png", abc_plot, width = 20, height = 10, dpi = 500)
 ```
+
+### Plotting pathways
+```{r}
+knitr::opts_chunk$set(eval = FALSE)
+abc_res_paths <- abc_paths$res %>%
+  select(-(grep("Intercept", colnames(abc_paths$res))))
+path_diff_abund <- ancombc_select(abc_res_paths, "diff_Location")
+path_se <- ancombc_select(abc_res_paths, "se_Location")
+path_lfc <- ancombc_select(abc_res_paths, "lfc_Location") %>%
+  merge(path_se, by = c("name", "taxon")) %>%
+  merge(path_diff_abund, by = c("name", "taxon")) %>%
+  filter(diff_Location == TRUE)
+
+percent_abund <- dim(path_lfc)[1] / dim(path_se)[1]
+message(glue("Percent of differentially abundant pathways: {percent_abund}"))
+abc_pathways <- abc_lfc_plot(path_lfc)
+ggsave("./figures/abc_paths.png", abc_pathways, width = 20, height = 10, dpi = 500)
+``````
+
+- ANCOM volcano plot interpretation
+  - ANCOM works by essentially doing a pairwise comparisons of the abundance of a given species in one sample vs a another sample
+  - The W value for the *i*th species is the number of times that the null hypothesis is rejected for that species _i_. We can simply interpret higher W values to mean that a specie is more abundant than others.
+The test can be thought of as ANOVA in that it identifies taxa that are differentially abundant between at least two groups across a set
+- ANCOM-BC returns five metrics for each OTU:
+    - Log fold change across different sites
+    - W-score: log fold change across different sites divided by standard error. This is ANCOM-BC's test statistic
+    - p value: whether or not the log fold change for a given OTU is statitically significant
+    - q value: the adjusted p-values
+    - Standard error
 
 # References
