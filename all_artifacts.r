@@ -1,4 +1,5 @@
 library(ape)
+library(ggridges)
 library(ggpattern)
 library(ggtree)
 library(TreeSummarizedExperiment)
@@ -288,7 +289,9 @@ abc_lfc_plot <- function(abc_lfc) {
         ymin = lfc_Location - se_Location,
         ymax = lfc_Location + se_Location
       ),
-      position = position_dodge()
-    )
+      width = .2,
+      position = position_dodge(.9)
+    ) +
+    labs(x = "Site", y = "Log fold change")
   return(plot)
 }

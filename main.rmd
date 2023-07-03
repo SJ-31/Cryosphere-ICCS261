@@ -190,12 +190,24 @@ pi_evenness <- data.frame(row.names = 1:10)
 for (site in names(id_key)) {
   pi_evenness[[id_key[[site]]]] <- alpha[[site]]$pi[, 1]
 }
+shannon <- data.frame(row.names = 1:10)
+for (site in names(id_key)) {
+  shannon[[id_key[[site]]]] <- alpha[[site]]$sh[, 1]
+}
 even_plot <- pi_evenness %>%
   gather() %>%
-  ggplot(aes(x = key, y = value)) +
-  geom_boxplot(fill = "lightcoral") +
+  ggplot(aes(x = key, y = value, fill = key)) +
+  geom_boxplot() +
+  guides(fill = "none") +
   labs(x = "Site", y = "Evenness", title = "Pielou evenness")
-ggsave("./figures/Pielou_evenness.png", even_plot, width = 20, height = 10, dpi = 300)
+entropy_plot <- shannon %>%
+  gather() %>%
+  ggplot(aes(x = value, y = key, fill = key)) +
+  ggridges::geom_density_ridges2() +
+  guides(fill = "none") +
+  labs(y = "Site", x = "Shannon Entropy")
+ggsave("./figures/entropy.png", entropy_plot, width = 20, height = 10, dpi = 500)
+ggsave("./figures/Pielou_evenness.png", even_plot, width = 20, height = 10, dpi = 500)
 ```
 From the box plot, we can see a few of the sites having similar evenness, particularly the Barrow mountain sites, Bihor mountains and Catriona snow. Whether or not the difference in Pielou evenness is statistically significant can be tested with Kruskal wallis
 ```{r}
@@ -284,7 +296,7 @@ anosim(filter_wn, grouping = filtered_meta$Location)
 ```
 
 # Functional analysis
-The raw output tables here are the absolute abundances of predicted biological pathways in each site using the KEGG Orthology database (KO). PICRUSt2 integrates with other databases, such as Enzyme Commission numbers (EC), but I've chosen to use the KO database because the PICRUSt2 authors describe how they've improved on the database integration compared to PICRUSt1.
+The raw output tables here are the absolute abundances of inferred biological pathways in each site based on the MetaCyc database. PICRUSt2 works by first predicting important reactions for metabolism in the site (using KEGG Orthology (KO) and Enzyme Commission numbers (EC)) format, then using their abundances for pathway inference. A pathway is essentially a set of reactions working together for a specific purpose, such as energy storage or synthesis.
 - Originally I had planned to use the farprotax database, but the script the authors provided didn't work.
 - I encountered another problem where PICRUSt2 failed to analyze the merged dataset so I had to combine the output tables from each sample.
 
@@ -297,6 +309,7 @@ ko_all <- ko %>%
   replace(is.na(.), 0) %>%
   rel_abund(., pathway) %>% # Convert to relative abundances
   as_tibble()
+ko_all %>% dim() # There are 438 inferred pathways
 
 ko_xfunc <- ko_all %>% sites_x_func() # Transpose into sites x function format
 
@@ -351,9 +364,13 @@ not_bacteria <- c(
   "Phragmoplastophyta", "Euryarchaeota", "Crenarchaeota"
 )
 
-# chosen_paths <-c("chlorophyll-syn", "glycolysis", "tca", "")
+shown_paths <- c(
+  "CHLOROPHYLL-SYN", "GLYCOLYSIS", "TCA", "CALVIN-PWY",
+  "PENTOSE-P-PWY", "METHANOGENESIS-PWY", "DENITRIFICATION-PWY", "FERMENTATION-PWY",
+  "LACTOSECAT-PWY", "METH-ACETATE-PWY"
+)
 nice_paths <- ko_all %>%
-  filter(!(grepl("[0-9]", pathway)))
+  filter((grepl(paste(shown_paths, collapse = "|"), pathway)))
 
 tax_sum <- sum_by_site(ranks, id_key, "taxon", not_bacteria)
 path_sum <- sum_by_site(nice_paths, id_key, "pathway", NaN)
@@ -367,17 +384,18 @@ stacked <- tax_sum %>% ggplot(., aes(x = name, y = value, fill = identifier)) +
     subtitle = "*Putative phyla and false positives
   (non-prokaryotes) removed"
   )
-stacked_paths
 ggsave("./figures/phyla.png", stacked, width = 20, height = 10, dpi = 300)
 
-stacked_paths <- path_sum %>% ggplot(., aes(x = name, y = value, fill = identifier)) +
-  geom_bar(stat = "identity") +
-  scale_fill_discrete(name = "Pathways") +
-  scale_color_paletteer_d("pals::glasbey") +
+heat_path <- path_sum %>% ggplot(., aes(x = name, y = identifier, fill = value)) +
+  geom_tile() +
+  scale_fill_gradient2(
+    name = "Relative abundance",
+    mid = "seagreen1", low = "springgreen", high = "seagreen"
+  ) +
   labs(
-    x = "Site", y = "Relative abundance",
+    x = "Site", y = "Pathway",
   )
-ggsave("./figures/path_plot.png", stacked_paths, width = 20, height = 10, dpi = 300)
+ggsave("./figures/path_plot.png", heat_path, width = 20, height = 10, dpi = 300)
 ```
 Going to the second-most inclusive taxonomic rank was essential here, given that there are 10668 OTUs total. Still, I noticed there were a few identifications that weren't prokaryotic. These are most likely false positives, given the specificity of the 16s rRNA primers used to sequence the samples.
 
@@ -429,12 +447,17 @@ my_phylo <- phyloseq(
 tse <- mia::makeTreeSummarizedExperimentFromPhyloseq(my_phylo)
 # Now run the test, testing differential abundance between locations
 tse_paths <- mia::makeTreeSummarizedExperimentFromPhyloseq(phylo_path)
+```
+
+```{r}
 chosen_rank <- "Class"
 abc <- ancombc2(
   data = tse, assay_name = "counts", tax_level = chosen_rank,
   fix_formula = "Location"
 )
+```
 
+```{r}
 abc_paths <- ancombc2(
   data = tse_paths, assay_name = "counts", tax_level = "Species",
   fix_formula = "Location"
@@ -450,11 +473,18 @@ se <- ancombc_select(abc_res, "se_Location", chosen_rank, wrong_tax)
 lfc <- ancombc_select(abc_res, "lfc_Location", chosen_rank, wrong_tax) %>%
   merge(se, by = c("name", "taxon")) %>%
   merge(diff_abund, by = c("name", "taxon")) %>%
-  filter(diff_Location == TRUE)
+  filter(diff_Location == TRUE) # Don't want to show taxa that don't have statistically
+# signifcant differences in log fold change
 percent_abund <- dim(lfc)[1] / dim(se)[1]
 
+# We keep the taxa with the highest and lowest log-fold changes between sites
+lfc_stats <- lfc$lfc_Location %>% summary()
+lfc_q3 <- lfc_stats[["3rd Qu."]]
+lfc_q1 <- lfc_stats[["1st Qu."]]
+
+lfc <- lfc[lfc$lfc_Location > lfc_q3 | lfc$lfc_Location < lfc_q1, ]
 message(glue("Percent of differentially abundant {chosen_rank}: {percent_abund}"))
-abc_plot <- abc_lfc_plot(lfc)
+abc_plot <- abc_lfc_plot(lfc) + scale_fill_discrete(name = "Class")
 ggsave("./figures/abc_tax.png", abc_plot, width = 20, height = 10, dpi = 500)
 ```
 
@@ -470,9 +500,14 @@ path_lfc <- ancombc_select(abc_res_paths, "lfc_Location") %>%
   merge(path_diff_abund, by = c("name", "taxon")) %>%
   filter(diff_Location == TRUE)
 
+lfc_stats <- path_lfc$lfc_Location %>% summary()
+lfc_q3 <- lfc_stats[["3rd Qu."]]
+lfc_q1 <- lfc_stats[["1st Qu."]]
+
 percent_abund <- dim(path_lfc)[1] / dim(path_se)[1]
+path_lfc <- path_lfc[path_lfc$lfc_Location > lfc_q3 | path_lfc$lfc_Location < lfc_q1, ]
 message(glue("Percent of differentially abundant pathways: {percent_abund}"))
-abc_pathways <- abc_lfc_plot(path_lfc)
+abc_pathways <- abc_lfc_plot(path_lfc) + scale_fill_discrete(name = "Pathway")
 ggsave("./figures/abc_paths.png", abc_pathways, width = 20, height = 10, dpi = 500)
 ``````
 

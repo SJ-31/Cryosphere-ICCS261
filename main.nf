@@ -20,6 +20,23 @@ include { IQTREE_ULTRAFAST_BOOTSTRAP; IQTREE } from './modules/iqtree.nf'
 include { FASTTREE } from './modules/fasttree.nf'
 include { MIDPOINTROOT } from './modules/midpoint-root.nf'
 
+// Nextflow highlights
+// Hi-lock: (("}" (0 'org-todo prepend)))
+// Hi-lock: (("{" (0 'org-todo prepend)))
+// Hi-lock: ((")" (0 'log-edit-header prepend)))
+// Hi-lock: (("(" (0 'log-edit-header prepend)))
+// Hi-lock: (("[Rr]eplaceAll" (0 'transient-amaranth prepend)))
+// Hi-lock: (("[Bb]aseName" (0 'transient-amaranth prepend)))
+// Hi-lock: (("[Bb]ranchCriteria" (0 'all-the-icons-cyan-alt prepend)))
+// Hi-lock: (("[Tt]ap" (0 'all-the-icons-cyan-alt prepend)))
+// Hi-lock: (("[Bb]ranch" (0 'all-the-icons-cyan-alt prepend)))
+// Hi-lock: (("[Ss]et" (0 'transient-pink prepend)))
+// Hi-lock: (("[Ff]latten" (0 'all-the-icons-cyan-alt prepend)))
+// Hi-lock: (("[Mm]ap" (0 'all-the-icons-cyan-alt prepend)))
+// Hi-lock: (("[Cc]ollect" (0 'all-the-icons-cyan-alt prepend)))
+// Hi-lock: (("[Ff]ilter" (0 'all-the-icons-cyan-alt prepend)))
+
+
 /*
  * Main workflow
  */
@@ -64,6 +81,8 @@ workflow clean_cluster {
     EXPORT(otu_ch.freqs, otu_ch.seqs, params.outdirOTUExport)
 
 }
+
+
 
 workflow phylogeny {
     get_channel("$params.outdirOTU/${params.target}*Seqs*")

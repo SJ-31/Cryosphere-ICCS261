@@ -1,4 +1,5 @@
 ### Load functions and libraries
+
 ```{r}
 library(ape)
 library(ggtree)
@@ -8,6 +9,8 @@ library(tidyverse)
 library(glue)
 library(qiime2R)
 
+metadata <- read.delim("./sys_metadata.tsv", sep = "\t")[-1, ]
+map_meta <- metadata[["source"]] %>% `names<-`(metadata[["sample.id"]])
 alpha_metrics <- list(
   sh = "shannon", pi = "pielou_e",
   si = "simpson", se = "simpson_e"
@@ -58,7 +61,11 @@ identify <- function(taxonomy, otus) {
   )
 }
 ```
+### Jellyfish microbiome analysis
+
+
 ### Sample background
+The data is the microbiome of the arms
 
 #### Importing the data
 
@@ -88,7 +95,7 @@ The sequences listed in the module were combined, clustered together to remove r
   - 3. Flavobacteria, Dokdonia, Joostella
 
 ### Taxonomic classification
-For taxonmic classification, I tried out all three of the options offered by qiime2: blast, vsearch and pre-trained naive-bayes classifier. 
+For taxonomic classification, I tried out all three of the options offered by qiime2: blast, vsearch and pre-trained naive-bayes classifier. 
 
 ### Import results
 
@@ -101,23 +108,15 @@ sklearn <- read_qza("./results/3-Classified/Jelly-Sklearn.qza")$data %>%
 vsearch <- read_qza("./results/3-Classified/Jelly-Vsearch_All.qza")$data %>%
   parse_taxonomy()
 iqtree <- read_qza("./results/6-RootedTrees/Jelly-IQTREE_RootedTree.qza")$data
-
-ko <- read_delim("results/3-FunctionAnnotation/Jelly_PICRUST2/KO_metagenome_out//pred_metagenome_unstrat.tsv", delim = "\t")
-functions <- ko %>%
-  as.data.frame() %>%
-  t() %>%
-  `colnames<-`(subset(., grepl("function", rownames(.)))) %>%
-  as.data.frame() %>%
-  slice(-1) %>%
-  mutate_all(as.numeric)
-
 b_known <- identify(blast, otus)
 unique_known(otus, b_known, classifier = "BLAST")
 sk_known <- identify(sklearn, otus)
 unique_known(otus, sk_known, classifier = "Sklearn")
 v_known <- identify(vsearch, otus)
 unique_known(otus, v_known, classifier = "Vsearch")
+wrong_stuff <- c("uncultured", "Chloroplast", "Mitochondria", "Unknown")
 ```
+
 Simply by looking at the proportion of identified, unique otus, we can see that the machine-learning approach is more effective than the homology-based methods (it's also far lighter on computer resources). I'll use the sklearn identifications for the rest of the analysis. 
 
 ### Phylogenetic tree
@@ -125,14 +124,66 @@ Simply by looking at the proportion of identified, unique otus, we can see that 
 ```{r}
 iqtree$tip.label <- sk_known$taxon[iqtree$tip.label %in% sk_known$Row.names]
 tree <- ggtree(iqtree) + geom_tiplab(size = 3, color = "blue") +
-    geom_rootedge(rootedge = .3)
+  geom_rootedge(rootedge = .3)
+tree
 ```
 
 ### Taxonomic analysis
 ```{r}
 # Which genera were most abundant?
+summed_otus <- otus %>%
+  merge(., sklearn, by = 0) %>%
+  drop_na() %>%
+  select(c(Genus, J1, J2, J3)) %>%
+  group_by(Genus) %>%
+  summarize(across(everything(), sum))
+
+row_abund <- function(column) {
+  return(
+    lapply(column, function(x) {
+      x / sum(column)
+    }) %>% unlist()
+  )
+}
+
+rel_abund <- summed_otus %>%
+  select(c(J1, J2, J3)) %>%
+  lapply(., row_abund) %>%
+  bind_rows() %>%
+  mutate(Genus = summed_otus$Genus) %>%
+  filter(!(grepl(paste(wrong_stuff, collapse = "|"), Genus))) %>%
+  pivot_longer(-Genus) %>%
+  mutate(source = map_meta[name])
+
+rel_abund %>% ggplot(aes(x = source, y = Genus, fill = value)) +
+  geom_tile() +
+  scale_fill_gradient2(
+    name = "Relative abundance",
+    mid = "seagreen1", low = "springgreen", high = "seagreen"
+  ) +
+  labs(
+    x = "Source", y = "Genus",
+  )
+
 genera <- sklearn %>%
   group_by(Genus) %>%
   count(sort = TRUE)
 ```
 
+### Functional analysis
+
+```{r}
+ko <- read_delim("./results/3-FunctionAnnotation/Jelly_PICRUST2/pathways_out/path_abun_unstrat.tsv", delim = "\t")
+functions <- ko %>%
+  as.data.frame() %>%
+  t() %>%
+  `colnames<-`(subset(., grepl("function", rownames(.)))) %>%
+  as.data.frame() %>%
+  slice(-1) %>%
+  mutate_all(as.numeric)
+```
+
+## Data sources
+- https://www.ebi.ac.uk/ena/browser/view/PRJEB8518
+- https://docs.qiime2.org/2023.5/data-resources/ High-quality reference OTUs
+- The `see` and `v2frame` functions were obtained from [this](https://forum.qiime2.org/t/how-to-capture-a-value-from-a-summary-and-pipe-it/19783/5) link via user thermokarst
