@@ -60,6 +60,7 @@ sk_merged %>% dim()
 count_identified(sklearn, "Sklearn")
 count_identified(blast, "BLAST")
 # The sklearn classifier has a slightly better number of identifications so will be used for all any downstream analyses
+sk_merged$Phylum %>% table
 ```
 
 ## Database preparation
@@ -410,12 +411,14 @@ tax_info <- c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species
 wrong_tax <- c("Unassigned", "Arthropoda", "Bacteria", "Insecta")
 
 filtered_otus <- read_qza("./results/2-OTUs/Merged-otuFreqs.qza")$data %>%
-  as.data.frame() %>%
-  select(matches(keep))
+  as.data.frame() # %>%
+  # select(matches(keep))
 
 chosen_paths <- ko_all %>%
   select(c(1, matches(keep))) %>%
   column_to_rownames(., var = "pathway")
+
+# Format the metadata
 formatted_meta_paths <- filtered_meta[match(colnames(chosen_paths), filtered_meta$sample.id), ] %>%
   `rownames<-`(NULL) %>%
   column_to_rownames(., var = "sample.id") %>%
@@ -434,7 +437,11 @@ matched_tax <- sk_merged[match(
 
 # All of this is necessary because the TSE object won't be
 #   created properly unless the indices of the rownames match precisely
-formatted_meta <- filtered_meta[match(colnames(filtered_otus), filtered_meta$sample.id), ] %>%
+# formatted_meta <- filtered_meta[match(colnames(filtered_otus), filtered_meta$sample.id), ] %>%
+#   `rownames<-`(NULL) %>%
+#   column_to_rownames(., var = "sample.id") %>%
+#   sample_data()
+formatted_meta <- metadata[match(colnames(filtered_otus), metadata$sample.id), ] %>%
   `rownames<-`(NULL) %>%
   column_to_rownames(., var = "sample.id") %>%
   sample_data()
@@ -450,11 +457,14 @@ tse_paths <- mia::makeTreeSummarizedExperimentFromPhyloseq(phylo_path)
 ```
 
 ```{r}
+var <- "Type"
 chosen_rank <- "Class"
 abc <- ancombc2(
   data = tse, assay_name = "counts", tax_level = chosen_rank,
-  fix_formula = "Location"
+  fix_formula = var, global = TRUE, group = var,
+  pairwise = TRUE
 )
+# Plot the pairwise comparisons
 ```
 
 ```{r}
@@ -467,24 +477,28 @@ abc_paths <- ancombc2(
 ### Plotting taxonomy
 ```{r}
 knitr::opts_chunk$set(eval = FALSE)
-abc_res <- abc$res %>% select(-(grep("Intercept", colnames(abc$res))))
-diff_abund <- ancombc_select(abc_res, "diff_Location", chosen_rank, wrong_tax)
-se <- ancombc_select(abc_res, "se_Location", chosen_rank, wrong_tax)
-lfc <- ancombc_select(abc_res, "lfc_Location", chosen_rank, wrong_tax) %>%
+abc_res <- abc$res_pair %>% select(-(grep("Intercept", colnames(abc$res_pair))))
+diff_abund <- ancombc_select(abc_res, glue("diff_{var}"), chosen_rank, wrong_tax)
+se <- ancombc_select(abc_res, glue("se_{var}"), chosen_rank, wrong_tax)
+# abc_res %>% filter(taxon == "Class:Alphaproteobacteria")
+lfc <- ancombc_select(abc_res, glue("lfc_{var}"), chosen_rank, wrong_tax) %>%
   merge(se, by = c("name", "taxon")) %>%
   merge(diff_abund, by = c("name", "taxon")) %>%
-  filter(diff_Location == TRUE) # Don't want to show taxa that don't have statistically
+  filter((!!as.symbol(glue("diff_{var}"))) == TRUE) # Don't want to show taxa that don't have statistically
 # signifcant differences in log fold change
 percent_abund <- dim(lfc)[1] / dim(se)[1]
+dim(se)[1]
+dim(lfc)[1]
 
 # We keep the taxa with the highest and lowest log-fold changes between sites
-lfc_stats <- lfc$lfc_Location %>% summary()
-lfc_q3 <- lfc_stats[["3rd Qu."]]
-lfc_q1 <- lfc_stats[["1st Qu."]]
+lfc_stats <- lfc[[glue("lfc_{var}")]] %>% summary()
+# lfc_q3 <- lfc_stats[["3rd Qu."]]
+# lfc_q1 <- lfc_stats[["1st Qu."]]
+# lfc %>% filter(lfc_Location == max(lfc_Location))
 
-lfc <- lfc[lfc$lfc_Location > lfc_q3 | lfc$lfc_Location < lfc_q1, ]
+lfc <- lfc[lfc[[glue("lfc_{var}")]] > lfc_q3 | lfc[[glue("lfc_{var}")]] < lfc_q1, ]
 message(glue("Percent of differentially abundant {chosen_rank}: {percent_abund}"))
-abc_plot <- abc_lfc_plot(lfc) + scale_fill_discrete(name = "Class")
+abc_plot <- abc_lfc_plot(lfc, var) + scale_fill_discrete(name = "Class")
 ggsave("./figures/abc_tax.png", abc_plot, width = 20, height = 10, dpi = 500)
 ```
 
@@ -508,12 +522,14 @@ percent_abund <- dim(path_lfc)[1] / dim(path_se)[1]
 path_lfc <- path_lfc[path_lfc$lfc_Location > lfc_q3 | path_lfc$lfc_Location < lfc_q1, ]
 message(glue("Percent of differentially abundant pathways: {percent_abund}"))
 abc_pathways <- abc_lfc_plot(path_lfc) + scale_fill_discrete(name = "Pathway")
+path_lfc %>% filter(lfc_Location == max(lfc_Location))
 ggsave("./figures/abc_paths.png", abc_pathways, width = 20, height = 10, dpi = 500)
 ``````
 
 - ANCOM volcano plot interpretation
-  - ANCOM works by essentially doing a pairwise comparisons of the abundance of a given species in one sample vs a another sample
-  - The W value for the *i*th species is the number of times that the null hypothesis is rejected for that species _i_. We can simply interpret higher W values to mean that a specie is more abundant than others.
+  - ANCOM works by essentially doing a pairwise comparisons of the abundance of a given species in one sample vs in a another sample
+  - The W value for the *i*th species is the number of times that the null hypothesis is rejected for that species _i_. We can simply interpret higher W values to mean that a species is more abundant than others.
+    - W value also works in the opposite direction where negative values mean less abundance
 The test can be thought of as ANOVA in that it identifies taxa that are differentially abundant between at least two groups across a set
 - ANCOM-BC returns five metrics for each OTU:
     - Log fold change across different sites
@@ -521,5 +537,6 @@ The test can be thought of as ANOVA in that it identifies taxa that are differen
     - p value: whether or not the log fold change for a given OTU is statitically significant
     - q value: the adjusted p-values
     - Standard error
+
 
 # References

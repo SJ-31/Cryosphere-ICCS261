@@ -252,6 +252,7 @@ ancombc_select <- function(ancombc_results, result, tax_level, unwanted) {
   } else {
     tax_level <- NaN
   }
+  print(select)
   selected <- select %>%
     mutate(taxon = str_replace(taxon, glue("{tax_level}:"), "")) %>%
     `colnames<-`(str_replace(colnames(.), result, "")) %>%
@@ -276,18 +277,19 @@ sum_by_site <- function(freq_table, id_key, id_col, unwanted) {
   return(summed)
 }
 
-abc_lfc_plot <- function(abc_lfc) {
+abc_lfc_plot <- function(abc_lfc, var) {
   plot <- abc_lfc %>%
     filter(!(grepl("[0-9]", taxon))) %>%
-    ggplot(aes(x = name, y = lfc_Location, fill = taxon)) +
+
+    ggplot(aes(x = name, y = (!!as.symbol(glue("lfc_{var}"))), fill = taxon)) +
     geom_bar(
       stat = "identity",
       position = position_dodge()
     ) +
     geom_errorbar(
       aes(
-        ymin = lfc_Location - se_Location,
-        ymax = lfc_Location + se_Location
+        ymin = (!!as.symbol(glue("lfc_{var}"))) - (!!as.symbol(glue("se_{var}"))),
+        ymax = (!!as.symbol(glue("lfc_{var}"))) + (!!as.symbol(glue("se_{var}")))
       ),
       width = .2,
       position = position_dodge(.9)

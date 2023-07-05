@@ -1,3 +1,9 @@
+.virtual_documents/*
+.jupyter/*
+.ipynb_checkpoints/*
+.Rhistory
+logistic_reg*csv
+*code-workspace
 data/*
 workflow.mmd
 *.qza
@@ -14,3 +20,4 @@ work/*
 .nextflow/*
 .nextflow.log*
 */artifacts/*
+figures/*

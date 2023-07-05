@@ -2,6 +2,7 @@
 
 ```{r}
 library(ape)
+library(ggVennDiagram)
 library(ggtree)
 library(TreeDist)
 library(phyloseq)
@@ -61,18 +62,18 @@ identify <- function(taxonomy, otus) {
   )
 }
 ```
-### Jellyfish microbiome analysis
 
+## Exploring the jellyfish microbiome
 
 ### Sample background
-The data is the microbiome of the arms
+The data consists of umbrella, oral arms and secreted mucus samples from the jellyfish species *Rhizostoma pulmo*. *R pulmo* belongs to the Rhizhostomatidae family of the class Scyphozoa, and is commonly found in the Mediterranean sea  [@mariottiniMediterraneanJellyfishVenoms2010]. This species is large, but not particularly venomous; it is considered "completely harmless to humans" [@mariottiniMediterraneanJellyfishVenoms2010].
 
 #### Importing the data
 
 The fastq files contain single-end reads, sequenced with the 454 GS FLX+ via a pyrosequencing approach
 https://trace.ncbi.nlm.nih.gov/Traces/study/?acc=SRP254518&o=acc_s%3Aa&s=SRR11447095,SRR11447093,SRR11447098
 
-```{bash}
+```bash
 qiime tools import \
     --type 'SampleData[SequencesWithQuality]' \
     --input-path data.tsv \
@@ -130,7 +131,6 @@ tree
 
 ### Taxonomic analysis
 ```{r}
-# Which genera were most abundant?
 summed_otus <- otus %>%
   merge(., sklearn, by = 0) %>%
   drop_na() %>%
@@ -155,7 +155,8 @@ rel_abund <- summed_otus %>%
   pivot_longer(-Genus) %>%
   mutate(source = map_meta[name])
 
-rel_abund %>% ggplot(aes(x = source, y = Genus, fill = value)) +
+
+genus_plot <- rel_abund %>% ggplot(aes(x = source, y = Genus, fill = value)) +
   geom_tile() +
   scale_fill_gradient2(
     name = "Relative abundance",
@@ -164,26 +165,35 @@ rel_abund %>% ggplot(aes(x = source, y = Genus, fill = value)) +
   labs(
     x = "Source", y = "Genus",
   )
-
-genera <- sklearn %>%
-  group_by(Genus) %>%
-  count(sort = TRUE)
+genus_plot
+key <- c(Umbrella = "J1", Mucus = "J2", Arms = "J3")
+venn <- summed_otus %>%
+  column_to_rownames(var = "Genus") %>%
+  lapply(., as.logical) %>%
+  as.data.frame() %>%
+  rename(., all_of(key)) %>%
+  mutate(Genus = summed_otus$Genus) %>%
+  ggvenn(., c("Umbrella", "Mucus", "Arms"), show_elements = "Genus", text_size = 2)
+  # ggplot(., aes(A = Umbrella, B = Mucus, C = Arms)) +
+  # geom_venn( show_elements = TRUE)
+venn
 ```
+From the
 
 ### Functional analysis
 
 ```{r}
-ko <- read_delim("./results/3-FunctionAnnotation/Jelly_PICRUST2/pathways_out/path_abun_unstrat.tsv", delim = "\t")
-functions <- ko %>%
+file <- read_delim("./results/3-FunctionAnnotation/Jelly_PICRUST2/pathways_out/path_abun_unstrat.tsv", delim = "\t")
+pathways <- file %>%
   as.data.frame() %>%
   t() %>%
-  `colnames<-`(subset(., grepl("function", rownames(.)))) %>%
+  `colnames<-`(subset(., grepl("pathway", rownames(.)))) %>%
   as.data.frame() %>%
   slice(-1) %>%
   mutate_all(as.numeric)
+pathways %>% colnames()
 ```
 
 ## Data sources
-- https://www.ebi.ac.uk/ena/browser/view/PRJEB8518
 - https://docs.qiime2.org/2023.5/data-resources/ High-quality reference OTUs
 - The `see` and `v2frame` functions were obtained from [this](https://forum.qiime2.org/t/how-to-capture-a-value-from-a-summary-and-pipe-it/19783/5) link via user thermokarst
