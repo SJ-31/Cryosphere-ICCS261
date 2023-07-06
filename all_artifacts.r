@@ -194,7 +194,11 @@ plot_pcoa <- function(pcoa, color_by, functions, title, subtitle = NULL) {
       )
       +
       scale_color_paletteer_d("pals::glasbey") +
-      labs(x = "PC1", y = "PC2", title = title, subtitle = subtitle)
+      labs(x = "PC1", y = "PC2", title = title, subtitle = subtitle) +
+      theme(
+        axis.text = element_text(size = 14),
+        axis.title = element_text(size = 16)
+      )
   )
 }
 
@@ -245,14 +249,13 @@ ancombc_select <- function(ancombc_results, result, tax_level, unwanted) {
   # Select results type from ancombc results object in long format
   select <- ancombc_results %>%
     select(c(1, grep(result, colnames(ancombc_results))))
-  if (!(missing(tax_level)) || !(missing(unwanted))) {
+  if (!(is.na(tax_level)) || !(is.na(unwanted))) {
     select <- select %>%
       filter(grepl(tax_level, .data$taxon)) %>%
       filter(!(grepl(paste(unwanted, collapse = "|"), .data$taxon)))
   } else {
     tax_level <- NaN
   }
-  print(select)
   selected <- select %>%
     mutate(taxon = str_replace(taxon, glue("{tax_level}:"), "")) %>%
     `colnames<-`(str_replace(colnames(.), result, "")) %>%
@@ -260,7 +263,32 @@ ancombc_select <- function(ancombc_results, result, tax_level, unwanted) {
   colnames(selected)[which(names(selected) == "value")] <- result
   return(selected)
 }
+prepare_abc_lfc <- function(abc_results, var, results_type, rank, wrong_tax) {
+  old <- glue("lfc_{var} se_{var} diff_{var}") %>%
+    strsplit(" ") %>%
+    unlist()
+  new <- c("lfc", "se", "diff")
+  abc <- abc_results[[results_type]] %>%
+    select(-(grep("Intercept", colnames(abc_results[[results_type]]))))
+  diff_abund <- ancombc_select(abc, glue("diff_{var}"), rank, wrong_tax)
+  se <- ancombc_select(abc, glue("se_{var}"), rank, wrong_tax)
+  lfc <- ancombc_select(abc, glue("lfc_{var}"), rank, wrong_tax) %>%
+    merge(se, by = c("name", "taxon")) %>%
+    merge(diff_abund, by = c("name", "taxon")) %>%
+    filter((!!as.symbol(glue("diff_{var}"))) == TRUE) %>%
+    rename_with(~new, all_of(old))
+  return(lfc)
+  # Don't want to show taxa that don't have statistically
+  # signifcant differences in log fold change
+}
 
+quartile_filter <- function(lfc_table) {
+  lfc_stats <- lfc_table$lfc %>% summary()
+  lfc_q3 <- lfc_stats[["3rd Qu."]]
+  lfc_q1 <- lfc_stats[["1st Qu."]]
+  highs_lows <- lfc_table[lfc_table$lfc > lfc_q3 | lfc_table$lfc < lfc_q1, ]
+  return(highs_lows)
+}
 
 sum_by_site <- function(freq_table, id_key, id_col, unwanted) {
   summed <- sapply(names(id_key), function(x) {
@@ -277,23 +305,43 @@ sum_by_site <- function(freq_table, id_key, id_col, unwanted) {
   return(summed)
 }
 
-abc_lfc_plot <- function(abc_lfc, var) {
+abc_lfc_plot <- function(abc_lfc) {
   plot <- abc_lfc %>%
     filter(!(grepl("[0-9]", taxon))) %>%
-
-    ggplot(aes(x = name, y = (!!as.symbol(glue("lfc_{var}"))), fill = taxon)) +
+    ggplot(aes(x = name, y = lfc, fill = taxon)) +
     geom_bar(
       stat = "identity",
       position = position_dodge()
     ) +
     geom_errorbar(
       aes(
-        ymin = (!!as.symbol(glue("lfc_{var}"))) - (!!as.symbol(glue("se_{var}"))),
-        ymax = (!!as.symbol(glue("lfc_{var}"))) + (!!as.symbol(glue("se_{var}")))
+        ymin = lfc - se,
+        ymax = lfc + se
       ),
       width = .2,
       position = position_dodge(.9)
     ) +
     labs(x = "Site", y = "Log fold change")
   return(plot)
+}
+
+ko_to_div <- function(pathway_df) {
+  diversity <- pathway_df %>%
+    t() %>%
+    as.data.frame() %>%
+    `colnames<-`(.[1, ]) %>%
+    slice(-1) %>%
+    mutate_all(as.numeric) %>%
+    diversity(index = "shannon") %>%
+    as.data.frame() %>%
+    rename("shannon" = ".") %>%
+    mutate(order = rownames(.))
+  diversity$order <- diversity$order %>%
+    lapply(., gsub, pattern = "[^0-9]", replacement = "") %>%
+    unlist() %>%
+    as.numeric()
+  diversity <- diversity %>%
+    arrange(order) %>%
+    select(-order)
+  return(diversity)
 }

@@ -1,5 +1,17 @@
-```{r}
-knitr::opts_chunk$set(eval = FALSE)
+---
+title: "Cryosphere microbiome"
+author: "Shann Chongwattananukul"
+output:
+  html_document:
+    theme: cerulean
+    higlight: tango
+    fig_width: 30
+    fig_height: 20
+    fig_caption: true
+    df_print: paged
+---
+
+```{r echo=FALSE, results='hide', message=FALSE}
 source("./all_artifacts.r")
 ```
 
@@ -23,6 +35,7 @@ Although all of these reads were prepared with Illumina devices, sequencing qual
 
 Quality $(Q)$ is commonly measured in Phred scores, denoted as $Q=-10 \log_{10}P$, where $P$ is the probability of an incorrect base call. Therefore, higher values for Phred indicate a lower probability of an erroneous base. Every base position is given a Phred score, and it is common to see the score decrease the longer the read
 
+
 ```bash
 # Relevant commands
 qiime tools import \
@@ -38,33 +51,10 @@ qiime tools import \
   --input-format SingleEndFastqManifestPhred33V2
 ```
 
-# Taxonomic classifications
-For sample taxonomic classification, I will be trying out all three of the methods available in qiime2:
-```{r}
-knitr::opts_chunk$set(eval = FALSE)
-blast <- lapply(
-  get_artifact_data("./results/3-Classified", id_key, "BLAST_All"),
-  parse_taxonomy
-)
-sklearn <- lapply(
-  get_artifact_data("./results/3-Classified", id_key, "Sklearn"),
-  parse_taxonomy
-)
-sk_merged <- read_qza("./results/3-Classified/Merged-Sklearn.qza")$data %>%
-  parse_taxonomy()
-sklearn %>%
-  lapply(., dim) %>%
-  unlist(use.names = FALSE) %>%
-  sum()
-sk_merged %>% dim()
-count_identified(sklearn, "Sklearn")
-count_identified(blast, "BLAST")
-# The sklearn classifier has a slightly better number of identifications so will be used for all any downstream analyses
-sk_merged$Phylum %>% table
-```
+# Pipeline
+The data I downloaded from the biological databases are in FastQ format, containing only the sequences of the reads with their quality scores from the sequencing machine. There were thirteen locations total, with ten samples from each
 
 ## Database preparation
-
 Two databases were obtained:
 
 - All annotated 16S rRNA from the NCBI ftp [website](https://ftp-ncbi-nlm-nih-gov.ejournal.mahidol.ac.th/blast/db/v5/)
@@ -128,49 +118,35 @@ with open('all_mappings.txt', 'r') as i:
 uniq.close
 ```
 
-### Phylogenetic trees
-```{r}
-knitr::opts_chunk$set(eval = FALSE)
-otu_freqs <- lapply(
-  get_artifact_data("./results/2-OTUs", id_key, "otuFreqs"),
-  as.data.frame
-)
-fasttree <- get_artifact_data(
-  "./results/6-RootedTrees", id_key,
-  "FastTree_RootedTree"
-)
-iqtree <- get_artifact_data(
-  "./results/6-RootedTrees", id_key,
-  "IQTREE_RootedTree"
-)
-matched <- match(iqtree$GrI$tip.label, rownames(otu_freqs$GrI))
-freq_mapping <- otu_freqs$GrI[matched, ] %>%
-  rowMeans() %>%
-  as.data.frame() %>%
-  `rownames<-`(seq_along(rownames(.)) %>% paste("OTU", ., sep = ""))
-iqtree$GrI$tip.label <- paste(rownames(freq_mapping), "freq =", freq_mapping[[1]])
-sample_tree <- iqtree$GrI %>%
-  ggtree(layout = "roundrect", aes(color = "#A4E473")) +
-  geom_tiplab(size = 3, color = "#004651") +
-  geom_tippoint(color = "#66CC8A")
-sample_tree
-ggsave("./figures/sample_tree.png", sample_tree,
-  width = 10, height = 10,
-  dpi = 500
-)
-```
+### Overview
 
-### Import frequency tables
+The pipeline I made for processing the reads first takes has several quality control steps, including trimming and contaminant removal.
 
-The following snippet maps otu ids the genus-level identifications for use with the farprotax database, writing csv files for each.
-```r
-otu_genus <- list()
-for (id in names(id_key)) {
-  otu_genus[[id]] <- to_genus_csv(otu_freqs[[id]], blast[[id]])
-}
-genus_combined <- combine_freqs(otu_genus, taxon)
-write.csv(combined, "genus_otu_tables.csv", row.names = FALSE)
+Afterwards, it combines reads using a 99% similarity threshold into operational taxonomic units or OTUs. The idea is that because every otu is unique, they should represent an indvidual species
+
+![workflow](./figures/workflow.png)
+
+The end results of the pipeline used in the upcoming analyses are the OTU frequency tables, taxonomic classifications of each OTU, frequency tables of biological functions predicted from the OTUs and finally phylogenetic trees, which describe the evolutionary relationship of each OTU.
+
+# Taxonomic classifications
+For sample taxonomic classification, I will be trying out all three of the methods available in qiime2:
+```{r cols.print=4, rows.print=4}
+blast <- lapply(
+  get_artifact_data("./results/3-Classified", id_key, "BLAST_All"),
+  parse_taxonomy
+)
+sklearn <- lapply(
+  get_artifact_data("./results/3-Classified", id_key, "Sklearn"),
+  parse_taxonomy
+)
+sk_merged <- read_qza("./results/3-Classified/Merged-Sklearn.qza")$data %>%
+  parse_taxonomy()
+count_identified(sklearn, "Sklearn")
+count_identified(blast, "BLAST")
+sk_merged
 ```
+The sklearn classifier has a slightly better number of identifications so will be used for all any downstream analyses
+
 
 # Diversity analyses
 - Unweighted "qualitative" metrics do not consider OTU abundance, telling you only about the presence and abundance of OTUs. They are more sensitive to rare OTUs
@@ -178,10 +154,12 @@ write.csv(combined, "genus_otu_tables.csv", row.names = FALSE)
 - Non-phylogenetic metrics assume everything is equally related to each other, so the presence of closely related species would contribute to higher diversity
 - Phylogenetic metrics take into account similarity based on evolutionary relation, resulting in better scaling for genetic distance
 
-
 ## Alpha diversity
+Definition: Alpha diversity describes the biodiversity within a site, how many different species are there.
+
+The first thing I did was test the alpha diversity
+
 ```{r}
-knitr::opts_chunk$set(eval = FALSE)
 alpha <- get_artifact_data("./results/7-Diversity",
   id_key,
   extension = "",
@@ -207,12 +185,17 @@ entropy_plot <- shannon %>%
   ggridges::geom_density_ridges2() +
   guides(fill = "none") +
   labs(y = "Site", x = "Shannon Entropy")
-ggsave("./figures/entropy.png", entropy_plot, width = 20, height = 10, dpi = 500)
-ggsave("./figures/Pielou_evenness.png", even_plot, width = 20, height = 10, dpi = 500)
+even_plot
+entropy_plot
 ```
+
+It's pretty clear that some sites have much lower evenness than others, indicating that they are consist mainly of a few species.
+
+For the set to the left over here, from the left to Catriona snow, I used the Kruskal wallis test and found that there is no statistically significant difference in site evenness in this group at least.
+
+
 From the box plot, we can see a few of the sites having similar evenness, particularly the Barrow mountain sites, Bihor mountains and Catriona snow. Whether or not the difference in Pielou evenness is statistically significant can be tested with Kruskal wallis
 ```{r}
-knitr::opts_chunk$set(eval = FALSE)
 pi_evenness %>%
   select(c(
     "Barrow mountain high", "Barrow mountain low",
@@ -220,12 +203,42 @@ pi_evenness %>%
   )) %>%
   kruskal.test()
 ```
-The p-value is 0.2744, so the difference in evenness is not statistically significant
 
 ## Beta diversity
-All ordination plots will be carried out with PCOA
+
+**Beta diversity:** Determining the distance/dissimilarity between sites, measured on a scale of 0 (identical) to 1 (completely different).
+
+### Why use different metrics?
 ```{r}
-knitr::opts_chunk$set(eval = FALSE)
+otu_freqs <- lapply(
+  get_artifact_data("./results/2-OTUs", id_key, "otuFreqs"),
+  as.data.frame
+)
+fasttree <- get_artifact_data(
+  "./results/6-RootedTrees", id_key,
+  "FastTree_RootedTree"
+)
+iqtree <- get_artifact_data(
+  "./results/6-RootedTrees", id_key,
+  "IQTREE_RootedTree"
+)
+matched <- match(iqtree$GrI$tip.label, rownames(otu_freqs$GrI))
+freq_mapping <- otu_freqs$GrI[matched, ] %>%
+  rowMeans() %>%
+  as.data.frame() %>%
+  `rownames<-`(seq_along(rownames(.)) %>% paste("OTU", ., sep = ""))
+iqtree$GrI$tip.label <- paste(rownames(freq_mapping), "freq =", freq_mapping[[1]])
+sample_tree <- iqtree$GrI %>%
+  ggtree(layout = "roundrect", aes(color = "#A4E473")) +
+  geom_tiplab(size = 3, color = "#004651") +
+  geom_tippoint(color = "#66CC8A") +
+  labs(title = "Phylogenetic tree of Cryoconite samples") +
+  theme(legend.position = "none", axis.text = element_text(size = 14))
+sample_tree
+```
+
+### Ordination
+```{r}
 beta <- get_artifact_data("./results/7-Diversity",
   list(Merged = NULL),
   extension = "",
@@ -254,55 +267,52 @@ pcoa_arrange <- ggarrange(pcoabc, pcoauu, pcoawn,
   common.legend = TRUE,
   legend = "right"
 )
-ggsave("./figures/pcoas.png",
-  plot = pcoa_arrange,
-  dpi = 300, width = 20, height = 10
-)
+pcoa_arrange
 ```
-The pcoa plots depict clearly how the choice of distance metric affects the clustering of samples.
-- Clustering in the Bray Curtis plot represents sites sharing many of the same species and in similar abundances. The big cluster falls apart once we factor the evolutionary distance between OTUs, shown by the Unifrac metrics.
+- The pcoa plots depict clearly how the choice of distance metric affects the clustering of samples.
+  - Clustering in the Bray Curtis plot represents sites sharing many of the same species and in similar abundances. The big cluster falls apart once we factor the evolutionary distance between OTUs, shown by the Unifrac metrics.
     - This implies that although some taxa are shared, the unique taxa are a evolutionary distant (essentially have very different DNA) from the shared ones.
-- Once we add weightings by abundance though, new clusters form, indicating there are many more common taxa within the groups than there are unique taxa.
-- Even partitioning sites by habitat type - glacier and permafrost, doesn't help
+  - Once we add weightings by abundance though, new clusters form, indicating there are many more common taxa within the groups than there are unique taxa.
+  - Even partitioning sites by habitat type - glacier and permafrost, doesn't help
 
-Admittedly, there is no clear consensus on what metric to choose when the results disagree strongly with each other. For the scope of this project, I will focusing the rest of the analyses only on the cluster depicted in the unweighted unifrac plot consisting of Cryoconite, Bihor Mountain caves, Yakutia, East Iceland glaciers, Catriona snow, and Greenland ice.
+#### What to choose?
 ```{r}
-knitr::opts_chunk$set(eval = FALSE)
 # Filter the sites
-# keep <- c("BhM", "CrC", "CaS", "CeY", "GrI", "EaI")
 keep <- c("ViS", "BrL", "BrH", "SvG")
-# keep <- c("CaS", "CeY", "BhM", "EaI")
-# filter_uu <- filter_dm(beta$Merged$uu, keep)
 filter_wn <- filter_dm(beta$Merged$wn, keep)
-# filter_bc <- filter_dm(beta$Merged$bc, keep)
 filtered_meta <- filter_meta(metadata, keep)
 ```
 
 ### PERMANOVA & ANOSIM
 Within the chosen cluster, its visually unclear whether or not the differences between sites are significant. There are specific hypothesis tests for this problem, such as Permutational Analysis of Variance (PERMANOVA) and Analysis of Similarities (ANOSIM)
 
-They can be thought of as quantitative extensions to ordination plots of a distance measure: it allows you to say with confidence whether or not certain variables (in this case location) are generating a statistically significant difference between species composition
+They can be thought of as quantitative analyses of beta diversity: allowing you to say with confidence whether or not certain variables (in this case location) are generating a statistically significant difference in species composition
 
 Both PERMANOVA and ANOSIM test the null hypothesis that within-group distances from each group are identical to between-group distance. With this dataset, rejecting the null hypothesis and concluding that between-group distance is different from within-group distance will let us conclude that different locations do have statistically significant species distribution.
 - The difference between them is...
 TODO:what is the difference between them?
 
 ```{r}
-knitr::opts_chunk$set(eval = FALSE)
-# adonis2(filter_uu ~ filtered_meta$Location)
 adonis2(filter_wn ~ filtered_meta$Location)
-# adonis2(filter_bc ~ filtered_meta$Location)
-# anosim(filter_uu, grouping = filtered_meta$Location)
 anosim(filter_wn, grouping = filtered_meta$Location)
 ```
 
 # Functional analysis
+```r
+# Export for far pro tax database
+otu_genus <- list()
+for (id in names(id_key)) {
+  otu_genus[[id]] <- to_genus_csv(otu_freqs[[id]], blast[[id]])
+}
+genus_combined <- combine_freqs(otu_genus, taxon)
+write.csv(combined, "genus_otu_tables.csv", row.names = FALSE)
+```
+
 The raw output tables here are the absolute abundances of inferred biological pathways in each site based on the MetaCyc database. PICRUSt2 works by first predicting important reactions for metabolism in the site (using KEGG Orthology (KO) and Enzyme Commission numbers (EC)) format, then using their abundances for pathway inference. A pathway is essentially a set of reactions working together for a specific purpose, such as energy storage or synthesis.
 - Originally I had planned to use the farprotax database, but the script the authors provided didn't work.
 - I encountered another problem where PICRUSt2 failed to analyze the merged dataset so I had to combine the output tables from each sample.
 
-```{r}
-knitr::opts_chunk$set(eval = FALSE)
+```{r cols.print=4, rows.print=4}
 ko_all <- ko %>%
   # Merge the PICRUSt2 tables
   reduce(merge, by = "pathway", all = TRUE) %>%
@@ -313,7 +323,10 @@ ko_all <- ko %>%
 ko_all %>% dim() # There are 438 inferred pathways
 
 ko_xfunc <- ko_all %>% sites_x_func() # Transpose into sites x function format
+ko_xfunc
+```
 
+```{r}
 # Compute bray curtis distance, then plot pcoa
 bc_func <- vegdist(ko_xfunc, method = "bray")
 pcoa_bc_func <- bc_func %>%
@@ -334,13 +347,11 @@ plot_bc_func <- plot_pcoa(pcoa_bc_func, "Location",
   title = "Bray Curtis",
   subtitle = "From biological pathways", functions = TRUE
 )
+TODO: Remove the y axis labels
 func_compare <- ggarrange(plot_ja_func, pcoaja, plot_bc_func, pcoabc,
   ncol = 2, nrow = 2, common.legend = TRUE, legend = "bottom"
 )
-ggsave("./figures/func_vs_tax.png",
-  plot = func_compare,
-  dpi = 300, width = 20, height = 10
-)
+func_compare
 ```
 
 # Differential abundance analysis
@@ -349,7 +360,6 @@ Finally, I will perform tests on the abundance of identified OTUs and the predic
 I will be using the Analysis of Microbiomes with Bias correction test (ANCOM-BC). To get an idea of what to expect from the test, I'll produce a bar plot depicting the relative phylum-level abundances between the sites.
 
 ```{r}
-knitr::opts_chunk$set(eval = FALSE)
 all <- read_qza("./results/2-OTUs/Merged-otuFreqs.qza")$data
 sk_merged <- read_qza("./results/3-Classified/Merged-Sklearn.qza")$data %>%
   parse_taxonomy()
@@ -381,11 +391,11 @@ stacked <- tax_sum %>% ggplot(., aes(x = name, y = value, fill = identifier)) +
   scale_fill_discrete(name = "Phylum") +
   scale_color_paletteer_d("pals::glasbey") +
   labs(
-    x = "Site", y = "Relative abundance",
+    x = "Site", y = "Relative abundance", title = "Phyla relative abundance",
     subtitle = "*Putative phyla and false positives
   (non-prokaryotes) removed"
-  )
-ggsave("./figures/phyla.png", stacked, width = 20, height = 10, dpi = 300)
+  ) + theme(axis.text = element_text(size = 14)),
+stacked
 
 heat_path <- path_sum %>% ggplot(., aes(x = name, y = identifier, fill = value)) +
   geom_tile() +
@@ -396,7 +406,7 @@ heat_path <- path_sum %>% ggplot(., aes(x = name, y = identifier, fill = value))
   labs(
     x = "Site", y = "Pathway",
   )
-ggsave("./figures/path_plot.png", heat_path, width = 20, height = 10, dpi = 300)
+heat_path
 ```
 Going to the second-most inclusive taxonomic rank was essential here, given that there are 10668 OTUs total. Still, I noticed there were a few identifications that weren't prokaryotic. These are most likely false positives, given the specificity of the 16s rRNA primers used to sequence the samples.
 
@@ -405,14 +415,12 @@ TODO:Which look abundant?
 
 There wouldn't be much point to testing differential abundance for sites that we already know to be similar based on the weighted unifrac plots, so I stuck with the cluster of sites that ANOSIM and PERMANOVA were conducted on
 ```{r}
-knitr::opts_chunk$set(eval = FALSE)
 # First we prepare the TreeSummarizedExperiment object
 tax_info <- c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species")
-wrong_tax <- c("Unassigned", "Arthropoda", "Bacteria", "Insecta")
+false_positives <- c("Unassigned", "Arthropoda", "Bacteria", "Insecta") # False positives
 
 filtered_otus <- read_qza("./results/2-OTUs/Merged-otuFreqs.qza")$data %>%
-  as.data.frame() # %>%
-  # select(matches(keep))
+  as.data.frame()
 
 chosen_paths <- ko_all %>%
   select(c(1, matches(keep))) %>%
@@ -437,10 +445,6 @@ matched_tax <- sk_merged[match(
 
 # All of this is necessary because the TSE object won't be
 #   created properly unless the indices of the rownames match precisely
-# formatted_meta <- filtered_meta[match(colnames(filtered_otus), filtered_meta$sample.id), ] %>%
-#   `rownames<-`(NULL) %>%
-#   column_to_rownames(., var = "sample.id") %>%
-#   sample_data()
 formatted_meta <- metadata[match(colnames(filtered_otus), metadata$sample.id), ] %>%
   `rownames<-`(NULL) %>%
   column_to_rownames(., var = "sample.id") %>%
@@ -457,75 +461,60 @@ tse_paths <- mia::makeTreeSummarizedExperimentFromPhyloseq(phylo_path)
 ```
 
 ```{r}
+# Differentially abundant taxa between cryosphere types
 var <- "Type"
 chosen_rank <- "Class"
 abc <- ancombc2(
   data = tse, assay_name = "counts", tax_level = chosen_rank,
-  fix_formula = var, global = TRUE, group = var,
+  fix_formula = var, group = var,
   pairwise = TRUE
 )
-# Plot the pairwise comparisons
+```
+
+```{r}
+# Differentially abundant taxa between locations
+# TODO: Perform a global tes to see which
+abc_global <- ancombc2(
+  data = tse, assay_name = "counts", tax_level = "Class",
+  fix_formula = "Location", global = TRUE, group = "Location"
+)
 ```
 
 ```{r}
 abc_paths <- ancombc2(
   data = tse_paths, assay_name = "counts", tax_level = "Species",
-  fix_formula = "Location"
+  fix_formula = "Type"
 )
 ```
 
-### Plotting taxonomy
+### Differentially abundant taxa between sites
 ```{r}
-knitr::opts_chunk$set(eval = FALSE)
-abc_res <- abc$res_pair %>% select(-(grep("Intercept", colnames(abc$res_pair))))
-diff_abund <- ancombc_select(abc_res, glue("diff_{var}"), chosen_rank, wrong_tax)
-se <- ancombc_select(abc_res, glue("se_{var}"), chosen_rank, wrong_tax)
-# abc_res %>% filter(taxon == "Class:Alphaproteobacteria")
-lfc <- ancombc_select(abc_res, glue("lfc_{var}"), chosen_rank, wrong_tax) %>%
-  merge(se, by = c("name", "taxon")) %>%
-  merge(diff_abund, by = c("name", "taxon")) %>%
-  filter((!!as.symbol(glue("diff_{var}"))) == TRUE) # Don't want to show taxa that don't have statistically
-# signifcant differences in log fold change
+lfc <- prepare_abc_lfc(abc, "Type", "res_pair", chosen_rank, false_positives) %>%
+  quartile_filter()
+# We keep the taxa with the highest and lowest log-fold changes between the types
 percent_abund <- dim(lfc)[1] / dim(se)[1]
-dim(se)[1]
-dim(lfc)[1]
-
-# We keep the taxa with the highest and lowest log-fold changes between sites
-lfc_stats <- lfc[[glue("lfc_{var}")]] %>% summary()
-# lfc_q3 <- lfc_stats[["3rd Qu."]]
-# lfc_q1 <- lfc_stats[["1st Qu."]]
-# lfc %>% filter(lfc_Location == max(lfc_Location))
-
-lfc <- lfc[lfc[[glue("lfc_{var}")]] > lfc_q3 | lfc[[glue("lfc_{var}")]] < lfc_q1, ]
 message(glue("Percent of differentially abundant {chosen_rank}: {percent_abund}"))
-abc_plot <- abc_lfc_plot(lfc, var) + scale_fill_discrete(name = "Class")
-ggsave("./figures/abc_tax.png", abc_plot, width = 20, height = 10, dpi = 500)
+abc_plot <- abc_lfc_plot(lfc) + scale_fill_discrete(name = "Class")
+abc_plot
+```
+
+### Differentially abundant taxa overall
+```{r}
+abc_global$res_global %>%
+  filter(grepl("Class", .data$taxon)) %>%
+  filter(diff_abn == TRUE)
 ```
 
 ### Plotting pathways
 ```{r}
-knitr::opts_chunk$set(eval = FALSE)
-abc_res_paths <- abc_paths$res %>%
-  select(-(grep("Intercept", colnames(abc_paths$res))))
-path_diff_abund <- ancombc_select(abc_res_paths, "diff_Location")
-path_se <- ancombc_select(abc_res_paths, "se_Location")
-path_lfc <- ancombc_select(abc_res_paths, "lfc_Location") %>%
-  merge(path_se, by = c("name", "taxon")) %>%
-  merge(path_diff_abund, by = c("name", "taxon")) %>%
-  filter(diff_Location == TRUE)
-
-lfc_stats <- path_lfc$lfc_Location %>% summary()
-lfc_q3 <- lfc_stats[["3rd Qu."]]
-lfc_q1 <- lfc_stats[["1st Qu."]]
+path_lfc <- prepare_abc_lfc(abc_paths, "Type", "res", NA, NA) %>%
+  quartile_filter()
 
 percent_abund <- dim(path_lfc)[1] / dim(path_se)[1]
-path_lfc <- path_lfc[path_lfc$lfc_Location > lfc_q3 | path_lfc$lfc_Location < lfc_q1, ]
-message(glue("Percent of differentially abundant pathways: {percent_abund}"))
 abc_pathways <- abc_lfc_plot(path_lfc) + scale_fill_discrete(name = "Pathway")
-path_lfc %>% filter(lfc_Location == max(lfc_Location))
-ggsave("./figures/abc_paths.png", abc_pathways, width = 20, height = 10, dpi = 500)
-``````
-
+path_lfc %>% filter(lfc == max(lfc))
+abc_pathways
+```
 - ANCOM volcano plot interpretation
   - ANCOM works by essentially doing a pairwise comparisons of the abundance of a given species in one sample vs in a another sample
   - The W value for the *i*th species is the number of times that the null hypothesis is rejected for that species _i_. We can simply interpret higher W values to mean that a species is more abundant than others.
@@ -538,5 +527,38 @@ The test can be thought of as ANOVA in that it identifies taxa that are differen
     - q value: the adjusted p-values
     - Standard error
 
+# Polynomial regression
+Is species diversity a good predictor of the pathway diversity in a site?
+
+**Hypothesis:** the higher the diversity and evenness in a given site, the higher the functional diveristy
+
+If they
+
+Features: site alpha diversity, observed species, evenness,
+
+## Alpha diversity and pathway diversity
+TODO: Might be better to use simpson
+```{r}
+shannon %>%
+  t() %>%
+  as.data.frame() %>%
+  rownames_to_column(var = "site") %>%
+  pivot_longer(-site)
+shannon
+rownames(shannon)
+s <- shannon$`Bihor mountains`
+j <- ko$BhM %>% ko_to_div()
+j
+
+iqtree$CrC$edge.length %>% sum()
+
+cas <- iqtree$CaS
+crc <- iqtree$CrC
+TreeDistance(cas, crc)
+
+ko %>% lapply(ko_to_div)
+# %>% as.numeric
+# print() %>% lapply(diversity, index = "shannon")
+```
 
 # References
