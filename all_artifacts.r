@@ -1,4 +1,5 @@
 library(ape)
+library(ShortRead)
 library(ggridges)
 library(ggpattern)
 library(ggtree)
@@ -12,9 +13,12 @@ library(glue)
 library(paletteer)
 library(qiime2R)
 library(ggpubr)
+
 metadata <- read.csv("./ds_metadata.tsv", sep = "\t") %>%
-  filter(!row_number() %in% c(1))
+  filter(!row_number() %in% c(1)) # Read in the metadata
+
 id_key <- list(
+  # Prepare the site list
   BhM = "Bihor mountains", BrH = "Barrow mountain high",
   BrL = "Barrow mountain low", CaS = "Catriona snow", CeY = "Central Yakutia",
   GrI = "Greenland ice", EaI = "East Iceland glaciers", CrC = "Cryoconite",
@@ -22,12 +26,14 @@ id_key <- list(
   StR = "Storglaciaren", ViS = "Villum station"
 )
 beta_metrics <- list(
+  # List of beta metrics
   bc = "B_braycurtis", ja = "B_jaccard",
   uu = "BPhylo_unweighted_unifrac",
   wn = "BPhylo_weighted_normalized_unifrac",
   wu = "BPhylo_weighted_unifrac"
 )
 alpha_metrics <- list(
+  # list of alpha metrics
   sh = "A_shannon", pi = "A_pielou_e",
   si = "A_simpson", se = "A_simpson_e",
   fa = "APhylo_faith_pd"
@@ -46,6 +52,7 @@ collapse_tax <- function(taxonomy, level) {
 }
 
 count_identified <- function(taxonomy, name) {
+  # Count the number of identified taxa
   total_ranks <- taxonomy %>%
     lapply(., dim) %>%
     unlist(use.names = FALSE) %>%
@@ -86,6 +93,7 @@ for (id in names(id_key)) {
 }
 
 rel_abund <- function(abs_abund, first_col) {
+  # Calculate relative abundance from absolute abundance
   rel_abund <- data.frame(first_col = abs_abund[1])
   for (col in 2:ncol(abs_abund)) {
     rel_abund[colnames(abs_abund[col])] <- abs_abund[col] / sum(abs_abund[col])
@@ -107,6 +115,7 @@ known_taxon <- function(row, taxonomy, level) {
 }
 
 combine_freqs <- function(freq_list, sum_by) {
+  # Combine frequency tables from different sites into one
   combined <- bind_rows(freq_list) %>%
     arrange(.[["sum_by"]]) %>%
     group_by(sum_by) %>%
@@ -116,6 +125,7 @@ combine_freqs <- function(freq_list, sum_by) {
 }
 
 genus_level <- function(row, taxonomy) {
+  # Return genus-level identifications
   if (is.na(taxonomy[row, 7])) {
     return(taxonomy[row, 6])
   }
@@ -158,6 +168,7 @@ replace_tips <- function(tree, taxonomy_frame, level) {
 }
 
 metadata_merge_pcoa <- function(metadata, ordination, functions) {
+  # Merge metadata with pcoa results
   if (missing(functions)) {
     return(
       ordination %>%
@@ -172,7 +183,8 @@ metadata_merge_pcoa <- function(metadata, ordination, functions) {
   }
 }
 
-plot_pcoa <- function(pcoa, color_by, functions, title, subtitle = NULL) {
+plot_pcoa <- function(pcoa, color_by, functions) {
+  # Plot pcoa graph
   if (missing(functions)) {
     x <- "Vectors.PC1"
     y <- "Vectors.PC2"
@@ -194,22 +206,11 @@ plot_pcoa <- function(pcoa, color_by, functions, title, subtitle = NULL) {
       )
       +
       scale_color_paletteer_d("pals::glasbey") +
-      labs(x = "PC1", y = "PC2", title = title, subtitle = subtitle) +
       theme(
         axis.text = element_text(size = 14),
         axis.title = element_text(size = 16)
       )
   )
-}
-
-unique_known <- function(otus, identified, classifier) {
-  uniques <- identified %>%
-    group_by(taxon) %>%
-    summarise() %>%
-    dim()
-  msg <- "% Unique otus:"
-  prop <- round((uniques[1] / dim(otus)[1]) * 100, 2)
-  return(glue("{classifier} {msg} {prop}"))
 }
 
 filter_dm <- function(dm, keep) {
@@ -263,7 +264,9 @@ ancombc_select <- function(ancombc_results, result, tax_level, unwanted) {
   colnames(selected)[which(names(selected) == "value")] <- result
   return(selected)
 }
+
 prepare_abc_lfc <- function(abc_results, var, results_type, rank, wrong_tax) {
+  # Prepare ancombc log fold change results for plotting
   old <- glue("lfc_{var} se_{var} diff_{var}") %>%
     strsplit(" ") %>%
     unlist()
@@ -283,6 +286,7 @@ prepare_abc_lfc <- function(abc_results, var, results_type, rank, wrong_tax) {
 }
 
 quartile_filter <- function(lfc_table) {
+  # Filter log fold change so that sites above the 3rd and below the 1st quartile remain
   lfc_stats <- lfc_table$lfc %>% summary()
   lfc_q3 <- lfc_stats[["3rd Qu."]]
   lfc_q1 <- lfc_stats[["1st Qu."]]
@@ -306,8 +310,8 @@ sum_by_site <- function(freq_table, id_key, id_col, unwanted) {
 }
 
 abc_lfc_plot <- function(abc_lfc) {
+  # Plot ancombc log fold change
   plot <- abc_lfc %>%
-    filter(!(grepl("[0-9]", taxon))) %>%
     ggplot(aes(x = name, y = lfc, fill = taxon)) +
     geom_bar(
       stat = "identity",
@@ -335,13 +339,14 @@ ko_to_div <- function(pathway_df) {
     diversity(index = "shannon") %>%
     as.data.frame() %>%
     rename("shannon" = ".") %>%
-    mutate(order = rownames(.))
-  diversity$order <- diversity$order %>%
+    mutate(name = rownames(.))
+  diversity$name <- diversity$name %>%
     lapply(., gsub, pattern = "[^0-9]", replacement = "") %>%
     unlist() %>%
     as.numeric()
   diversity <- diversity %>%
-    arrange(order) %>%
-    select(-order)
-  return(diversity)
+    arrange(name) %>%
+    rownames_to_column() %>%
+    rename("site" = "rowname")
+  return(as.data.frame(diversity))
 }
