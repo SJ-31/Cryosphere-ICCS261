@@ -1,5 +1,7 @@
+library(microseq)
+library(caret)
+library(randomForest)
 library(ape)
-library(ShortRead)
 library(ggridges)
 library(ggpattern)
 library(ggtree)

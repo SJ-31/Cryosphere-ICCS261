@@ -11,37 +11,34 @@ output:
     df_print: paged
 ---
 
-```{r echo=FALSE, results='hide', message=FALSE}
+```{r echo=FALSE, results='hide', message=FALSE, comment=NA}
 source("./all_artifacts.r")
 ```
 # Overview
 - Why study microorganisms in extreme environments? (extremophiles)
 TODO: Read up on why
-  - Biotechnology
+  - Biotechnology applications
 
 ## Questions
-- How distinct are different cryospheric environments as microbial habitats?
-- What taxa are most associated with cryospheric environments? Do these differ between habitats?
-- What is the diversity of biological pathways? Will we see distinct sets of functions for each habitat?
+- 1) How do the different habitats differ by taxonomic and functional diversity?
+- 2) What taxa and functions are most associated with cryospheric environments? Do these differ between habitats?
+- 3) Can we accurately classify what samples belong to which site using high-level taxonomic ranks?
 
-## Hypotheses
+## Hypothesis
 - We will observe greater taxonomic diversity between sites than functional diversity
-  - There is a limited number of adaptations that microorganisms can evolve to survive in cryospheric environments, so we should expect a signifcant degree of convergent evolution towards the same pathways
-- Taxonomic diversity will therefore
+  - There is a limited number of adaptations that microorganisms can evolve to survive in cryospheric environments, so we should expect a significant degree of convergent evolution towards the same pathways
 
 # Pipeline
 
 ## Overview
 - The Nextflow pipeline used to process the reads first performs quality control, including trimming and contaminant removal.
   - Afterwards, it combines reads using a 99% similarity threshold into operational taxonomic units or OTUs. The idea is that because every otu is unique, each one represents an individual species
-```{r}
-example_fastq <- readFastq("./data/raw/Bihor_Mountain/SRR2998649.part-1.fastq")
+```{r comment=NA}
 # A single FastQ sequence has three components
-example_fastq@id[1] # ID
-example_fastq@sread[1] # Base sequence
-example_fastq@quality[1] # Base quality score
+example <- read.delim("./data/raw/Bihor_Mountain/SRR2998649.part-1.fastq")
+show <- paste(c(example[4, ], example[5, ], example[6, ], example[7, ]), collapse = "\n")
+message(show)
 ```
-
 - **Input:**
   - Raw reads in FastQ format: 13 sites, 10 samples each
     - A non-cryoconic sample ("New Zealand soil") was added as an "outgroup" comparison
@@ -91,7 +88,7 @@ The MicFunPred and NCBI databases were obtained in the standard BLAST format, an
   - 4. Concatenate the respective files types together, then import them files as qiime2 Artifacts
   - 5. Repeat for the other database (if both databases used the identifier conventions I could have combined them and processed them together but unfortunately this was not the case )
 
-```{r cols.print=4, rows.print=4}
+```{r cols.print=4, rows.print=4, comment=NA}
 # The database of identifiers
 database_example <- read_tsv("./data/blastdb/all_uniqIDs.txt")
 database_example
@@ -151,7 +148,7 @@ uniq.close
 
 ## Alpha diversity
 
-```{r}
+```{r, comment=NA}
 alpha <- get_artifact_data("./results/7-Diversity",
   id_key,
   extension = "",
@@ -169,10 +166,10 @@ faith_div_plot <- faith %>%
   labs(y = "Site", x = "Faith diversity")
 faith_div_plot
 ```
-
 - Evenness quantifies the distribution of species in a site; the higher the evenness, the more balanced the number of each species.
   - Low evenness indicates that a site consists mainly of a few very common species
-```{r}
+
+```{, comment=NAr}
 pi_evenness <- data.frame(row.names = 1:10)
 for (site in names(id_key)) {
   pi_evenness[[id_key[[site]]]] <- alpha[[site]]$pi[, 1]
@@ -186,7 +183,8 @@ even_plot <- pi_evenness %>%
 even_plot
 ```
 It's pretty clear that some sites have much lower evenness than others. Others, like the Barrow mountain sites, Bihor mountains and Catriona snow seem similar from the box plot. Whether or not the difference in evenness is statistically significant can be tested with Kruskal wallis
-```{r}
+
+```{r, comment=NA}
 pi_evenness %>%
   select(c(
     "Barrow mountain high", "Barrow mountain low",
@@ -206,7 +204,7 @@ Beta diversity quantifies the distance/dissimilarity between sites and is measur
 - Metrics differ mainly by which information they include
 
 #### But what is phylogenetic distance?
-```{r}
+```{r, comment=NA}
 otu_freqs <- lapply(
   get_artifact_data("./results/2-OTUs", id_key, "otuFreqs"),
   as.data.frame
@@ -240,7 +238,7 @@ sample_tree
 ### Ordination
 Beta diversity calculations on multiple sites at once returns a distance matrix, where the first row and column are sites and entries are. This can be depicted using ordination methods
 
-```{r}
+```{r, comment=NA}
 beta <- get_artifact_data("./results/7-Diversity",
   list(Merged = NULL),
   extension = "",
@@ -279,7 +277,7 @@ pcoa_arrange
     - Even partitioning sites by habitat type - glacier and permafrost, doesn't help
 
 #### What to choose?
-```{r}
+```{r, comment=NA}
 # Filter the sites
 keep <- c("ViS", "BrL", "BrH", "SvG")
 filter_wn <- filter_dm(beta$Merged$wn, keep)
@@ -295,7 +293,7 @@ Within the chosen cluster, its visually unclear whether or not the differences b
 
 TODO:what is the difference between them?
 
-```{r}
+```{r, comment=NA}
 adonis2(filter_wn ~ filtered_meta$Location)
 anosim(filter_wn, grouping = filtered_meta$Location)
 ```
@@ -314,7 +312,7 @@ genus_combined <- combine_freqs(otu_genus, taxon)
 write.csv(combined, "genus_otu_tables.csv", row.names = FALSE)
 ```
 
-```{r cols.print=4, rows.print=4}
+```{r cols.print=4, rows.print=4, comment=NA}
 ko_all <- ko %>%
   # Merge the PICRUSt2 tables
   reduce(merge, by = "pathway", all = TRUE) %>%
@@ -332,7 +330,7 @@ ko_all
 - Originally I had planned to use the farprotax database for function prediction, but the script the authors provided didn't work.
 
 
-```{r}
+```{r cols.print=4, rows.print=4, comment=NA}
 # Compute bray curtis distance, then plot pcoa
 bc_func <- vegdist(ko_xfunc, method = "bray")
 pcoa_bc_func <- bc_func %>%
@@ -368,12 +366,12 @@ func_compare
 
 # Taxonomic classifications
 For sample taxonomic classification, I will be trying out all three of the methods available in qiime2:
-```{r cols.print=4, rows.print=4}
+```{r cols.print=4, rows.print=4, comment=NA}
 blast <- lapply(
   get_artifact_data("./results/3-Classified", id_key, "BLAST_All"),
   parse_taxonomy
 )
-blast
+blast$CaS # The classifications for the Catriona snow site
 sklearn <- lapply(
   get_artifact_data("./results/3-Classified", id_key, "Sklearn"),
   parse_taxonomy
@@ -390,7 +388,7 @@ The sklearn classifier has a slightly better number of identifications so will b
 # Abundance visualizations
 
 ## Phyla
-```{r}
+```{r cols.print=4, rows.print=4, comment=NA}
 all <- read_qza("./results/2-OTUs/Merged-otuFreqs.qza")$data
 sk_merged <- read_qza("./results/3-Classified/Merged-Sklearn.qza")$data %>%
   parse_taxonomy()
@@ -423,15 +421,15 @@ stacked
 ```
 
 ## Pathways
-```{r}
+```{r cols.print=4, rows.print=4, comment=NA}
 shown_paths <- c(
   "CHLOROPHYLL-SYN", "GLYCOLYSIS", "TCA", "CALVIN-PWY",
   "PENTOSE-P-PWY", "METHANOGENESIS-PWY", "DENITRIFICATION-PWY", "FERMENTATION-PWY",
   "LACTOSECAT-PWY", "METH-ACETATE-PWY"
 )
-path_sum <- sum_by_site(nice_paths, id_key, "pathway", NaN)
 nice_paths <- ko_all %>%
   filter((grepl(paste(shown_paths, collapse = "|"), pathway)))
+path_sum <- sum_by_site(nice_paths, id_key, "pathway", NaN)
 heat_path <- path_sum %>% ggplot(., aes(x = name, y = identifier, fill = value)) +
   geom_tile() +
   scale_fill_gradient2(
@@ -452,7 +450,7 @@ heat_path
 seems to be the newest and most robust
   - Notably, it accounts for biases related to sampling fraction and can provide p-values and confidence intervals for log-fold change for each unit
 
-```{r}
+```{r cols.print=4, rows.print=4, message=FALSE, warning=FALSE, include=FALSE, comment=NA}
 # First we prepare the TreeSummarizedExperiment object
 tax_info <- c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species")
 false_positives <- c("Unassigned", "Arthropoda", "Bacteria", "Insecta") # False positives
@@ -478,6 +476,7 @@ phylo_path <- phyloseq(
 
 # All of this is necessary because the TSE object won't be
 #   created properly unless the indices of the rownames match precisely
+
 matched_tax <- sk_merged[match(
   rownames(otus),
   rownames(sk_merged)
@@ -524,7 +523,7 @@ write.csv2(path_lfc, "./results/8-ANCOM-BC/path_lfc.csv", row.names = FALSE)
 ```
 
 ### Differentially abundant taxa between sites
-```{r cols.print=4, rows.print=4}
+```{r cols.print=4, rows.print=4, comment=NA}
 abc_taxon <- read.csv2("./results/8-ANCOM-BC/all_taxon_res.csv")
 taxon_all_counts <- abc_taxon %>%
   ancombc_select(glue("diff_{var}"), chosen_rank, false_positives) %>%
@@ -554,11 +553,12 @@ message(glue("The most abundant class is {most_abund}"))
 abc_taxon
 abc_plot
 ```
+The top three most abundant classes
 TODO: Talk about the most abundant classes and pathways
 KD4-96 is a uncharacterized class of the phylum Chloroflexi
 
 ### Plotting pathways
-```{r cols.print=4, rows.print=4}
+```{r cols.print=4, rows.print=4, comment=NA}
 all_path_lfc <- read.csv2("./results/8-ANCOM-BC/all_path_res.csv")
 path_lfc <- read.csv2("./results/8-ANCOM-BC/path_lfc.csv")
 
@@ -600,54 +600,51 @@ abc_pathways
 - The W value for the *i*th species is the number of times that the null hypothesis is rejected for that species _i_. We can simply interpret higher W values to mean that a species is more abundant than others.
   - W value also works in the opposite direction where negative values mean less abundance
 
-# Polynomial regression
-Is species diversity a good predictor of the pathway diversity in a site?
+# Random forest for site prediction
 
-**Hypothesis:** the higher the diversity and evenness in a given site, the higher the functional diveristy
-
-If they
-
-- **Features:** site alpha diversity with Faith, evenness,
+- **Features:** relative abundances of each phyla
   - Because it is a phylogenetic index, Faith's diversity is actually a combination of two features: number of species and evolutionary distance
     - Faith uses branch length in its calculation
 
-## Alpha diversity and pathway diversity
-```{r}
-f_faith <- faith %>%
-  select(-`New Zealand soil`) %>%
+## 
+```{r cols.print=4, rows.print=4, comment=NA}
+bad_names <- ranks[grep("-", ranks$taxon), ]$taxon
+new_names <- bad_names %>% gsub("-", "_", .)
+
+phyla_abund <- ranks %>%
+  rel_abund() %>%
   t() %>%
   as.data.frame() %>%
-  rownames_to_column(var = "site") %>%
-  pivot_longer(-site)
-
-f_even <- pi_evenness %>%
-  select(-`New Zealand soil`) %>%
-  t() %>%
-  as.data.frame() %>%
-  rownames_to_column(var = "site") %>%
-  pivot_longer(-site)
-
-
-
-remove_nums <- function(numbered_site) {
-  no_nums <- id_key[[str_replace(numbered_site$site[1],
-    pattern = "[1-9]", ""
-  )]] %>% rep(times = length(test$site))
-  return(no_nums)
-}
-
-ko[["NzS"]] <- NULL
-stacked_ko <- ko %>%
-  lapply(ko_to_div) %>%
-  lapply(., function(x) {
-    mutate(x, site = remove_nums(x))
-  }) %>%
-  bind_rows() %>%
+  `colnames<-`(.[1, ]) %>%
+  filter(!(grepl("NzS", rownames(.)))) %>%
+  select(!all_of((not_bacteria))) %>%
+  rename_with(~ "Marinimicrobia", "Marinimicrobia_(SAR406_clade)") %>%
+  rename_with(~ new_names, bad_names) %>%
+  slice(-1) %>%
+  rownames_to_column("pred") %>%
+  mutate_at(.vars = c(1:length(colnames(.)))[-1], .funs = as.numeric) %>%
   as_tibble()
 
-combined <- merge(f_faith, f_even, by = c("name", "site")) %>%
-  rename_with(~ c("faith", "evenness"), c("value.x", "value.y")) %>%
-  merge(stacked_ko, by = c("name", "site"))
+phyla_train <- phyla_abund %>%
+  mutate(pred = lapply(pred, function(x) {
+    return(filter(metadata, sample.id == x)$Type)
+  })) %>%
+  mutate(pred = unlist(pred)) %>%
+  mutate(pred = as.factor(pred)) # Site needs to be converted to a factor object
+
+num_features <- length(colnames(phyla_train))
+message(glue("Trained on {num_features} features"))
+
+# Train the forest
+set.seed(2002)
+preds <- sample(2, nrow(phyla_train), replace = TRUE, prob = c(0.7, 0.3))
+train <- phyla_train[preds == 1, ]
+test <- phyla_train[preds == 2, ]
+rf <- randomForest(pred ~ ., data = train, proximity = TRUE)
+print(rf)
+try <- predict(rf, train)
+confusionMatrix(try, train$pred)
+varImpPlot(rf)
 ```
 
 # References
