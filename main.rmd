@@ -184,15 +184,11 @@ It's pretty clear that some sites have much lower evenness than others. Others, 
 
 ```{r, comment=NA}
 pi_evenness %>%
-  select(c(
-    "Barrow mountain high", "Barrow mountain low",
-    "Bihor mountains", "Catriona snow"
-  )) %>%
+  select(c("Barrow mountain high", "Barrow mountain low", "Bihor mountains", "Catriona snow")) %>%
   kruskal.test()
 ```
 
 ## Beta diversity
-
 Beta diversity quantifies the distance/dissimilarity between sites and is measured on a scale of 0 (identical) to 1 (completely different).
 
 ###  But why use different metrics?
@@ -203,20 +199,12 @@ Beta diversity quantifies the distance/dissimilarity between sites and is measur
 
 #### But what is phylogenetic distance?
 ```{r, comment=NA}
-otu_freqs <- lapply(
-  get_artifact_data("./results/2-OTUs", id_key, "otuFreqs"),
-  as.data.frame
-)
-fasttree <- get_artifact_data(
-  # Approximate maximum likelihood trees, quick and useful for testing data
-  "./results/6-RootedTrees", id_key,
-  "FastTree_RootedTree"
-)
-iqtree <- get_artifact_data(
-  # Real maximum likelihood trees, accurate, but slow
-  "./results/6-RootedTrees", id_key,
-  "IQTREE_RootedTree"
-)
+otu_freqs <- lapply(get_artifact_data("./results/2-OTUs", id_key, "otuFreqs"), as.data.frame)
+fasttree <- get_artifact_data("./results/6-RootedTrees", id_key, "FastTree_RootedTree")
+# Approximate maximum likelihood trees, quick and useful for testing data
+iqtree <- get_artifact_data("./results/6-RootedTrees", id_key, "IQTREE_RootedTree")
+# Real maximum likelihood trees, accurate, but slow
+
 # Annotate an example tree
 matched <- match(iqtree$GrI$tip.label, rownames(otu_freqs$GrI))
 freq_mapping <- otu_freqs$GrI[matched, ] %>%
@@ -234,16 +222,13 @@ sample_tree
 ```
 
 ### Ordination
-Beta diversity calculations on multiple sites at once returns a distance matrix, where the first row and column are sites and entries are. This can be depicted using ordination methods
+Beta diversity calculations on multiple sites at once returns a distance matrix, where the first row and column are sites and entries are. The results can be visualized using a dimensionality reduction technique called principle coordinates analysis
+- The PcOA plots here were calculated directly with Qiime2 in an extension to the pipeline
 
+#### Import results and plot
 ```{r, comment=NA}
-beta <- get_artifact_data("./results/7-Diversity",
-  list(Merged = NULL),
-  extension = "",
-  metric_list = beta_metrics
-)
-pcoa2D <- get_artifact_data("./results/8-Analysis",
-  list(Merged = NULL),
+beta <- get_artifact_data("./results/7-Diversity", list(Merged = NULL), extension = "", metric_list = beta_metrics)
+pcoa2D <- get_artifact_data("./results/8-Analysis", list(Merged = NULL),
   extension = "PCOA-2D_",
   metric_list = beta_metrics
 )
@@ -261,19 +246,15 @@ pcoauu <- plot_pcoa(pcoa2D_merged$uu, "Location") +
 pcoawn <- plot_pcoa(pcoa2D_merged$wn, "Location") +
   labs(x = "PC1", y = element_blank(), title = "Weighted normalized Unifrac")
 
-pcoa_arrange <- ggarrange(pcoabc, pcoauu, pcoawn,
-  ncol = 3,
-  common.legend = TRUE,
-  legend = "right"
-)
+pcoa_arrange <- ggarrange(pcoabc, pcoauu, pcoawn, ncol = 3, common.legend = TRUE, legend = "right")
 pcoa_arrange
 ```
-The pcoa plots depict clearly how the choice of distance metric affects the clustering of samples.
 
-- Clustering in the Bray Curtis plot represents sites sharing many of the same species and in similar abundances. The big cluster falls apart once we factor the evolutionary distance between OTUs, shown by the Unifrac metrics.
+Clustering in the Bray Curtis plot represents sites sharing many of the same species and in similar abundances. The big cluster falls apart once we factor the evolutionary distance between OTUs, shown by the Unifrac metrics.
 - This implies that although some taxa are shared, the unique taxa are a evolutionary distant (essentially have very different DNA) from the shared ones.
 - Once we add weightings by abundance though, new clusters form, indicating there are many more common taxa within the groups than there are unique taxa.
   - Even partitioning sites by habitat type - glacier and permafrost, doesn't help
+- **Conclusion:** many of the sites share the same taxa, but the relationships between them differ
 
 #### What to choose?
 ```{r, comment=NA}
@@ -285,12 +266,9 @@ filtered_meta <- filter_meta(metadata, keep)
 
 ### PERMANOVA & ANOSIM
 Within the chosen cluster, its visually unclear whether or not the differences between sites are significant. There are specific hypothesis tests for this problem, such as Permutational Analysis of Variance (PERMANOVA) and Analysis of Similarities (ANOSIM)
-
 - These allow you to say with confidence whether or not certain variables (in this case location) are generating a statistically significant difference in species composition
   - Both PERMANOVA and ANOSIM test the null hypothesis that within-group distances from each group are identical to between-group distance.
   - With this dataset, rejecting the null hypothesis and concluding that between-group distance is different from within-group distance will let us conclude that different locations do have statistically significant species distribution.
-
-TODO:what is the difference between them?
 
 ```{r, comment=NA}
 adonis2(filter_wn ~ filtered_meta$Location)
@@ -300,6 +278,7 @@ anosim(filter_wn, grouping = filtered_meta$Location)
 # Pathway analysis
 - A metabolic pathway is essentially a set of reactions operating together for a specific purpose, such as energy storage or producing a certain molecule.
   - These tell us about how the microorganisms are interacting with each other and their environment
+  - Performing a beta diversity analysis on the set of metabolic pathways will reveal the functional similarity of each site
 
 ```r
 # Export for far pro tax database
@@ -310,7 +289,7 @@ for (id in names(id_key)) {
 genus_combined <- combine_freqs(otu_genus, taxon)
 write.csv(combined, "genus_otu_tables.csv", row.names = FALSE)
 ```
-
+### Import PICRUSt2 output
 ```{r cols.print=4, rows.print=4, comment=NA}
 ko_all <- ko %>%
   # Merge the PICRUSt2 tables
@@ -323,19 +302,18 @@ message(glue("There are {dim(ko_all)[1]} inferred pathways"))
 ko_xfunc <- ko_all %>% sites_x_func() # Transpose into sites x function format
 ko_all
 ```
-- The raw output tables here are the abundances of inferred biological pathways in each site based on the MetaCyc database.
+
+The raw output tables here are the abundances of inferred biological pathways in each site based on the MetaCyc database.
 - PICRUSt2 works by first predicting important reactions for metabolism in the site (using KEGG Orthology (KO) and Enzyme Commission numbers (EC)) format, then using their abundances for pathway inference.
 
-- Originally I had planned to use the farprotax database for function prediction, but the script the authors provided didn't work.
-
-
+### Compute distances, then plot
 ```{r cols.print=4, rows.print=4, comment=NA, message=FALSE, comment=NA}
-# Compute bray curtis distance, then plot pcoa
+# Bray-curtis distance
 bc_func <- vegdist(ko_xfunc, method = "bray")
 pcoa_bc_func <- bc_func %>%
   wcmdscale(k = 2) %>%
   metadata_merge_pcoa(metadata, ., functions = TRUE)
-# Compute jaccard distance
+# Jaccard distance
 ja_func <- vegdist(ko_xfunc, method = "jaccard")
 
 pcoa_ja_func <- ja_func %>%
@@ -343,18 +321,13 @@ pcoa_ja_func <- ja_func %>%
   metadata_merge_pcoa(metadata, ., functions = TRUE)
 
 # Plot and compare with ordination on taxonomy
-
 plot_ja_func <- plot_pcoa(pcoa_ja_func, "Location", functions = TRUE) +
-  labs(
-    x = element_blank(), y = element_blank(), title = "Jaccard distance",
-    subtitle = "From biological pathways"
-  )
+  labs(x = element_blank(), y = element_blank(), title = "Jaccard distance",
+    subtitle = "From biological pathways")
 
 plot_bc_func <- plot_pcoa(pcoa_bc_func, "Location", functions = TRUE) +
-  labs(
-    x = "PC1", y = element_blank(), title = "Jaccard distance",
-    subtitle = "From biological pathways"
-  )
+  labs(x = "PC1", y = element_blank(), title = "Jaccard distance",
+    subtitle = "From biological pathways")
 
 func_compare <- ggarrange(pcoaja + labs(x = element_blank()), plot_ja_func, pcoabc, plot_bc_func,
   ncol = 2, nrow = 2, common.legend = TRUE, legend = "bottom"
@@ -363,18 +336,15 @@ func_compare <- ggarrange(pcoaja + labs(x = element_blank()), plot_ja_func, pcoa
 func_compare
 ```
 
+**Conclusion**: There is a high degree of pathway diversity between sites, and the most distinct are the Catriona snow and Greenland ice sites.
+- Again, the New Zealand soil site is clustered nearby with many other cryospheric sites
+
 # Taxonomic classifications
 For sample taxonomic classification, I will be trying out all three of the methods available in qiime2:
 ```{r cols.print=4, rows.print=4, comment=NA}
-blast <- lapply(
-  get_artifact_data("./results/3-Classified", id_key, "BLAST_All"),
-  parse_taxonomy
-)
+blast <- lapply(get_artifact_data("./results/3-Classified", id_key, "BLAST_All"), parse_taxonomy)
 blast$CaS # The classifications for the Catriona snow site
-sklearn <- lapply(
-  get_artifact_data("./results/3-Classified", id_key, "Sklearn"),
-  parse_taxonomy
-)
+sklearn <- lapply(get_artifact_data("./results/3-Classified", id_key, "Sklearn"), parse_taxonomy)
 sk_merged <- read_qza("./results/3-Classified/Merged-Sklearn.qza")$data %>%
   parse_taxonomy()
 count_identified(sklearn, "Sklearn")
@@ -389,14 +359,13 @@ The sklearn classifier has a slightly better number of identifications so will b
 ## Phyla
 ```{r cols.print=4, rows.print=4, comment=NA}
 all <- read_qza("./results/2-OTUs/Merged-otuFreqs.qza")$data
-sk_merged <- read_qza("./results/3-Classified/Merged-Sklearn.qza")$data %>%
-  parse_taxonomy()
+sk_merged <- read_qza("./results/3-Classified/Merged-Sklearn.qza")$data %>% parse_taxonomy()
 
 ranks <- merge_with_id(all, sk_merged, level = 2) %>%
-  # Collapse taxnomy into phyla
   filter(!(is.na(taxon))) %>%
   group_by(taxon) %>%
   summarise(across(everything(), sum))
+# Collapse taxnomy into phyla
 
 not_bacteria <- c(
   "Arthropoda", "Nanoarchaeota", "Diatomea", "Altiarchaeota",
@@ -410,12 +379,9 @@ stacked <- tax_sum %>% ggplot(., aes(x = name, y = value, fill = identifier)) +
   geom_bar(stat = "identity") +
   scale_fill_discrete(name = "Phylum") +
   scale_color_paletteer_d("pals::glasbey") +
-  labs(
-    x = "Site", y = "Relative abundance", title = "Phyla relative abundance",
-    subtitle = "*Putative phyla and false positives
-  (non-prokaryotes) removed"
-  ) +
-  theme(axis.text = element_text(size = 5))
+  labs(x = "Site", y = "Relative abundance", title = "Phyla relative abundance",
+    subtitle = "*Putative phyla and false positives (non-prokaryotes) removed") +
+    theme(axis.text = element_text(size = 5))
 stacked
 ```
 
@@ -431,13 +397,8 @@ nice_paths <- ko_all %>%
 path_sum <- sum_by_site(nice_paths, id_key, "pathway", NaN)
 heat_path <- path_sum %>% ggplot(., aes(x = name, y = identifier, fill = value)) +
   geom_tile() +
-  scale_fill_gradient2(
-    name = "Relative abundance",
-    mid = "seagreen1", low = "springgreen", high = "seagreen"
-  ) +
-  labs(
-    x = "Site", y = "Pathway",
-  )
+  scale_fill_gradient2(name = "Relative abundance", mid = "seagreen1", low = "springgreen", high = "seagreen") +
+  labs(x = "Site", y = "Pathway", )
 heat_path
 ```
 
@@ -455,12 +416,10 @@ tax_info <- c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species
 false_positives <- c("Unassigned", "Arthropoda", "Bacteria", "Insecta") # False positives
 
 # Remove the soil site from the abundance anlayses
-otus <- read_qza("./results/2-OTUs/Merged-otuFreqs.qza")$data %>%
-  as.data.frame()
+otus <- read_qza("./results/2-OTUs/Merged-otuFreqs.qza")$data %>% as.data.frame()
 otus <- otus %>% select(-(grep("NzS", colnames(otus))))
 metadata <- metadata %>% filter(!(grepl("NzS", sample.id)))
-paths <- ko_all %>%
-  column_to_rownames(., var = "pathway")
+paths <- ko_all %>% column_to_rownames(., var = "pathway")
 paths <- paths %>% select(-(grep("NzS", colnames(paths))))
 
 # Format the metadata
@@ -468,18 +427,11 @@ formatted_meta_paths <- metadata[match(colnames(paths), metadata$sample.id), ] %
   `rownames<-`(NULL) %>%
   column_to_rownames(., var = "sample.id") %>%
   sample_data()
-phylo_path <- phyloseq(
-  otu_table(paths, taxa_are_rows = TRUE),
-  formatted_meta_paths
-)
-
+phylo_path <- phyloseq(otu_table(paths, taxa_are_rows = TRUE), formatted_meta_paths)
 # All of this is necessary because the TSE object won't be
 #   created properly unless the indices of the rownames match precisely
 
-matched_tax <- sk_merged[match(
-  rownames(otus),
-  rownames(sk_merged)
-), ] %>%
+matched_tax <- sk_merged[match(rownames(otus), rownames(sk_merged)), ] %>%
   tax_table() %>%
   `colnames<-`(tax_info)
 formatted_meta <- metadata[match(colnames(otus), metadata$sample.id), ] %>%
@@ -487,10 +439,7 @@ formatted_meta <- metadata[match(colnames(otus), metadata$sample.id), ] %>%
   column_to_rownames(., var = "sample.id") %>%
   sample_data()
 rownames(otus) <- rownames(matched_tax)
-my_phylo <- phyloseq(
-  otu_table(otus, taxa_are_rows = TRUE), formatted_meta,
-  matched_tax
-)
+my_phylo <- phyloseq(otu_table(otus, taxa_are_rows = TRUE), formatted_meta, matched_tax)
 
 tse <- mia::makeTreeSummarizedExperimentFromPhyloseq(my_phylo)
 tse_paths <- mia::makeTreeSummarizedExperimentFromPhyloseq(phylo_path)
@@ -540,8 +489,7 @@ tax_ids <- as.character(1:length(lfc$taxon))
 lfc$taxon <- paste(c(glue("{tax_ids}:")), lfc$taxon)
 
 abc_plot <- abc_lfc_plot(lfc) + scale_fill_discrete(name = "Class") + labs(x = "Type") +
-  geom_label(aes(label = tax_ids),
-    label.size = 0.15,
+  geom_label(aes(label = tax_ids), label.size = 0.15,
     position = position_dodge(width = .9), show.legend = FALSE
   )
 
@@ -575,8 +523,7 @@ path_lfc$taxon <- paste(c(glue("{ids}:")), path_lfc$taxon)
 
 abc_pathways <- abc_lfc_plot(path_lfc) +
   scale_fill_discrete(name = "Pathway") +
-  geom_label(aes(label = ids),
-    label.size = 0.15,
+  geom_label(aes(label = ids), label.size = 0.15,
     position = position_dodge(width = .9), show.legend = FALSE
   )
 most_abund <- path_lfc %>%
@@ -599,12 +546,10 @@ abc_pathways
   - W value also works in the opposite direction where negative values mean less abundance
 
 # Random forest for site prediction
-
 - **Features:** relative abundances of each phyla
   - Because it is a phylogenetic index, Faith's diversity is actually a combination of two features: number of species and evolutionary distance
     - Faith uses branch length in its calculation
 
-## 
 ```{r cols.print=4, rows.print=4, comment=NA}
 bad_names <- ranks[grep("-", ranks$taxon), ]$taxon
 new_names <- bad_names %>% gsub("-", "_", .)
@@ -616,9 +561,9 @@ phyla_abund <- ranks %>%
   `colnames<-`(.[1, ]) %>%
   filter(!(grepl("NzS", rownames(.)))) %>%
   select(!all_of((not_bacteria))) %>%
-  rename_with(~ "Marinimicrobia", "Marinimicrobia_(SAR406_clade)") %>%
-  rename_with(~ new_names, bad_names) %>%
-  slice(-1) %>%
+  rename_with(~"Marinimicrobia", "Marinimicrobia_(SAR406_clade)") %>%
+  rename_with(~new_names, bad_names) %>%
+  dplyr::slice(-1) %>%
   rownames_to_column("pred") %>%
   mutate_at(.vars = c(1:length(colnames(.)))[-1], .funs = as.numeric) %>%
   as_tibble()
@@ -633,7 +578,7 @@ phyla_train <- phyla_abund %>%
 num_features <- length(colnames(phyla_train))
 message(glue("Trained on {num_features} features"))
 
-# Train the forest
+## Train the random forest
 set.seed(2002)
 preds <- sample(2, nrow(phyla_train), replace = TRUE, prob = c(0.7, 0.3))
 train <- phyla_train[preds == 1, ]
@@ -644,5 +589,7 @@ try <- predict(rf, train)
 confusionMatrix(try, train$pred)
 varImpPlot(rf)
 ```
+
+# Conclusion
 
 # References

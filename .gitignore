@@ -1,4 +1,5 @@
 .virtual_documents/*
+sys*
 .jupyter/*
 .ipynb_checkpoints/*
 .Rhistory
@@ -12,10 +13,7 @@ dag*
 temp.fasta
 testzone/*
 moving_pics/*
-sys/jelly_data/*
-sys/filtered/*
 results/*
-sys/casava-18-single-end-demultiplexed/*
 work/*
 .nextflow/*
 .nextflow.log*

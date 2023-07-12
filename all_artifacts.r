@@ -239,7 +239,7 @@ sites_x_func <- function(picrust_tsv2) {
     t() %>%
     `colnames<-`(subset(., grepl("function", rownames(.)))) %>%
     as.data.frame() %>%
-    slice(-1) %>%
+    dplyr::slice(-1) %>%
     mutate_all(as.numeric))
 }
 
