@@ -1,4 +1,5 @@
 .virtual_documents/*
+assignments/*
 sys*
 .jupyter/*
 .ipynb_checkpoints/*
