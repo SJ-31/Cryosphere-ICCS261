@@ -5,12 +5,11 @@ output:
   html_document:
     theme: cerulean
     higlight: tango
-    fig_width: 30
-    fig_height: 20
+    fig_width: 20
+    fig_height: 8
     fig_caption: true
     df_print: paged
 ---
-
 ```{r echo=FALSE, results='hide', message=FALSE, comment=NA}
 source("./all_artifacts.r")
 ```
@@ -88,7 +87,7 @@ The MicFunPred and NCBI databases were obtained in the standard BLAST format, an
   - 4. Concatenate the respective files types together, then import them files as qiime2 Artifacts
   - 5. Repeat for the other database (if both databases used the identifier conventions I could have combined them and processed them together but unfortunately this was not the case )
 
-```{r cols.print=4, rows.print=4, comment=NA}
+```{r cols.print=4, rows.print=4, comment=NA, message=FALSE, comment=NA}
 # The database of identifiers
 database_example <- read_tsv("./data/blastdb/all_uniqIDs.txt")
 database_example
@@ -113,8 +112,7 @@ cat EzBioCloud/ezbiocloud_qiime_full.fasta ncbi16sID.fasta micfun.fasta > all.fa
 qiime tools import     --type FeatureData[Taxonomy]     --input-format HeaderlessTSVTaxonomyFormat     --input-path all.fasta     --output-path all_fasta.qza
 qiime tools import     --type FeatureData[Taxonomy]     --input-format HeaderlessTSVTaxonomyFormat     --input-path all_uniqIDs.txt     --output-path Ids.qza
 ```
-
-- Altogether, the database contains 130,122 sequences (though there might be some repetition that was overlooked)
+Altogether, the database contains 130,122 sequences (though there might be some repetition that was overlooked)
 
 ```python
 # Script for removing redundant ids
@@ -148,7 +146,7 @@ uniq.close
 
 ## Alpha diversity
 
-```{r, comment=NA}
+```{r, comment=NA, message=FALSE, comment=NA}
 alpha <- get_artifact_data("./results/7-Diversity",
   id_key,
   extension = "",
@@ -166,10 +164,10 @@ faith_div_plot <- faith %>%
   labs(y = "Site", x = "Faith diversity")
 faith_div_plot
 ```
-- Evenness quantifies the distribution of species in a site; the higher the evenness, the more balanced the number of each species.
-  - Low evenness indicates that a site consists mainly of a few very common species
+Evenness quantifies the distribution of species in a site; the higher the evenness, the more balanced the number of each species.
+- Low evenness indicates that a site consists mainly of a few very common species
 
-```{, comment=NAr}
+```{r, comment=NA}
 pi_evenness <- data.frame(row.names = 1:10)
 for (site in names(id_key)) {
   pi_evenness[[id_key[[site]]]] <- alpha[[site]]$pi[, 1]
@@ -201,7 +199,7 @@ Beta diversity quantifies the distance/dissimilarity between sites and is measur
 - Besides total species counts, two other sets of information can be used in the diversity calculation
   - **Abundance:** the individual counts for each species e.g. 100 observations of species A, 20 of B
   - **Phylogenetic distance:** the evolutionary relationships between each species
-- Metrics differ mainly by which information they include
+- Metrics differ by the information they include in their calculation
 
 #### But what is phylogenetic distance?
 ```{r, comment=NA}
@@ -231,7 +229,7 @@ sample_tree <- iqtree$GrI %>%
   geom_tiplab(size = 3, color = "#004651") +
   geom_tippoint(color = "#66CC8A") +
   labs(title = "Phylogenetic tree of Cryoconite samples") +
-  theme(legend.position = "none", axis.text = element_text(size = 14))
+  theme(legend.position = "none", axis.text = element_text(size = 5))
 sample_tree
 ```
 
@@ -270,11 +268,12 @@ pcoa_arrange <- ggarrange(pcoabc, pcoauu, pcoawn,
 )
 pcoa_arrange
 ```
-- The pcoa plots depict clearly how the choice of distance metric affects the clustering of samples.
-  - Clustering in the Bray Curtis plot represents sites sharing many of the same species and in similar abundances. The big cluster falls apart once we factor the evolutionary distance between OTUs, shown by the Unifrac metrics.
-  - This implies that although some taxa are shared, the unique taxa are a evolutionary distant (essentially have very different DNA) from the shared ones.
-  - Once we add weightings by abundance though, new clusters form, indicating there are many more common taxa within the groups than there are unique taxa.
-    - Even partitioning sites by habitat type - glacier and permafrost, doesn't help
+The pcoa plots depict clearly how the choice of distance metric affects the clustering of samples.
+
+- Clustering in the Bray Curtis plot represents sites sharing many of the same species and in similar abundances. The big cluster falls apart once we factor the evolutionary distance between OTUs, shown by the Unifrac metrics.
+- This implies that although some taxa are shared, the unique taxa are a evolutionary distant (essentially have very different DNA) from the shared ones.
+- Once we add weightings by abundance though, new clusters form, indicating there are many more common taxa within the groups than there are unique taxa.
+  - Even partitioning sites by habitat type - glacier and permafrost, doesn't help
 
 #### What to choose?
 ```{r, comment=NA}
@@ -330,7 +329,7 @@ ko_all
 - Originally I had planned to use the farprotax database for function prediction, but the script the authors provided didn't work.
 
 
-```{r cols.print=4, rows.print=4, comment=NA}
+```{r cols.print=4, rows.print=4, comment=NA, message=FALSE, comment=NA}
 # Compute bray curtis distance, then plot pcoa
 bc_func <- vegdist(ko_xfunc, method = "bray")
 pcoa_bc_func <- bc_func %>%
@@ -359,7 +358,7 @@ plot_bc_func <- plot_pcoa(pcoa_bc_func, "Location", functions = TRUE) +
 
 func_compare <- ggarrange(pcoaja + labs(x = element_blank()), plot_ja_func, pcoabc, plot_bc_func,
   ncol = 2, nrow = 2, common.legend = TRUE, legend = "bottom"
-) + theme(axis.text = element_text(size = 14))
+) + theme(axis.text = element_text(size = 5))
 
 func_compare
 ```
@@ -416,7 +415,7 @@ stacked <- tax_sum %>% ggplot(., aes(x = name, y = value, fill = identifier)) +
     subtitle = "*Putative phyla and false positives
   (non-prokaryotes) removed"
   ) +
-  theme(axis.text = element_text(size = 14))
+  theme(axis.text = element_text(size = 5))
 stacked
 ```
 
@@ -568,7 +567,6 @@ path_all_counts <- all_path_lfc %>%
   unique() %>%
   dim()
 percent_abund <- ((length(unique(path_lfc$taxon)) / path_all_counts[1]) %>% round(digits = 2)) * 100
-path_all_counts
 
 print(glue("Percent of differentially abundant pathways: {percent_abund}"))
 path_lfc <- path_lfc %>% quartile_filter()
