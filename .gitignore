@@ -1,4 +1,5 @@
 .virtual_documents/*
+*__*
 assignments/*
 sys*
 .jupyter/*
