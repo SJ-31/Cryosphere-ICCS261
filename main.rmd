@@ -14,9 +14,9 @@ output:
 source("./all_artifacts.r")
 ```
 ### Overview
-- Why study microorganisms in extreme environments? (extremophiles)
-TODO: Read up on why
-  - Biotechnology applications
+- Why study cryosphere microboiomes?
+  - Microorganisms in extreme environments unique properties which could be exploited for biotechnology
+  - Due to global warming, we need to understand what happens to these habits if we lose them
 
 #### Questions
 - 1) How do the different habitats differ by taxonomic and functional diversity?
@@ -413,7 +413,7 @@ We know that the sites differ by the taxa and pathways present, but how do we qu
 - There are many methods available for this, but **Analysis of Compositions of Microbiomes with Bias correction test (ANCOM-BC)**
 seems to be the newest and most robust
   - Notably, it accounts for biases related to sampling fraction and can provide p-values and confidence intervals for log-fold change for each unit
-- Differential abundance was performed against the different habitat
+- ANCOM-BC works by comparing the differential abundance of every taxon present in one sample against another sample in the dataset, for every pair of samples
 
 ```{r cols.print=4, rows.print=4, message=FALSE, warning=FALSE, include=FALSE, comment=NA}
 # First we prepare the TreeSummarizedExperiment object
@@ -506,11 +506,12 @@ abc_taxon
 abc_plot
 ```
 
-ANCOM-BC test returns p-values, so the results here are only the log-fold changes that are statistically significant
+The ANCOM-BC test returns p-values, so the results here are only the log-fold changes that are statistically significant
 - **Interpretation:** the x-axis shows the comparisons being made, while the y-axis is the log-fold change in the taxon represented by that bar
 
 **Highlights**
 - 66% of Classes (63 out of 96) were differentially abundant between sites
+  - The other 33 could represent the "core" microbiome, shared between the habitat types
   - *I specified a cutoff so that the graph only shows the 90th and 10th percentiles so there are actually more that weren't shown
 - Permafrost has a significantly lower amount of Cyanobacteria than both sites (bar 18 and bar 5), but higher levels of Desulfuromonadia in both
 
@@ -547,10 +548,11 @@ abc_pathways
 
 **Highlights**
 - 52% of pathways (216 out of 419) were differentially abundant
-- Compared to Glacier sites, Permafrost has a higher abundance of the CENTBENZCOA pathway and the
+  - Reinforces how the habitat types have unique microbial communities
+- Compared to Glacier sites, Permafrost has a higher abundance of the vitamin b6 degradation pathway (PWY-5499)
+  - In comparison with both Other and Glacier sites, Permafrost is lacking in the benzoyl-CoA degradation (CENTBENZCOA-PWY) pathway
 
-### Other results
-- ANCOMBC performs pairwise comparisons of the abundance of a given species in one sample vs in a another sample
+### ANCOM-BC other output
 - It returns five metrics for each OTU:
   - Log fold change of the OTU
   - W-score: log fold change across different sites divided by standard error. This is ANCOM-BC's test statistic
@@ -561,13 +563,16 @@ abc_pathways
   - W value also works in the opposite direction where negative values mean less abundance
 
 ### Random forest for site prediction
-As an extension to one of the assignments, I wanted to build a model that predicts multiple classes
-- Habitat type ("Permafrost", "Glacier" or "Other") was the only variable that made sense for the dataset
-  - Predicting Location would have worked as well, but I didn't have enoguh samples from each
-- **Features:** relative abundances of each phyla
+- As an extension to one of the assignments, I wanted to build a model that predicts multiple classes. Habitat type ("Permafrost", "Glacier" or "Other") was the only variable that made sense for the dataset
+  - Predicting Location would have worked, but I didn't have enoguh samples from each Location for training
+- **Predictors:** relative abundances of each phyla
+  - Phyla-level predictions are more accurate than lower-level ranks
+  - Also reduces the number of features in the model
+- A random forest model was the natural choice to reduce overfitting to the specific values of abundance in my dataset
 
 ```{r cols.print=4, rows.print=4, comment=NA}
 bad_names <- ranks[grep("-", ranks$taxon), ]$taxon
+# change the names to stop errors
 new_names <- bad_names %>% gsub("-", "_", .)
 
 phyla_abund <- ranks %>%
@@ -599,12 +604,34 @@ set.seed(2002)
 preds <- sample(2, nrow(phyla_train), replace = TRUE, prob = c(0.7, 0.3))
 train <- phyla_train[preds == 1, ]
 test <- phyla_train[preds == 2, ]
-rf <- randomForest(pred ~ ., data = train, proximity = TRUE)
+rf <- randomForest(y = train$pred, x = train[, -1], data = train)
 print(rf)
-try <- predict(rf, train)
-confusionMatrix(try, train$pred)
-varImpPlot(rf)
+try <- predict(rf, test)
+confusionMatrix(try, test$pred)
+varImpPlot(rf, main = "Phyla importances")
 ```
-
+Since the out-of-bag estimate for the error rate is 3.53% so the model is pretty good, even without adjusting any parameters
+- This shows that the Phyla abundances can actually characterize habitat types
 
 ### References
+Bokulich, N. A., Kaehler, B. D., Rideout, J. R., Dillon, M., Bolyen, E., Knight, R., Huttley, G. A., & Gregory Caporaso, J. (2018). Optimizing taxonomic classification of marker-gene amplicon sequences with QIIME 2’s q2-feature-classifier plugin. Microbiome, 6(1), 90. https://doi.org/10.1186/s40168-018-0470-z
+Bolyen, E., Rideout, J. R., Dillon, M. R., Bokulich, N. A., Abnet, C. C., Al-Ghalith, G. A., Alexander, H., Alm, E. J., Arumugam, M., Asnicar, F., Bai, Y., Bisanz, J. E., Bittinger, K., Brejnrod, A., Brislawn, C. J., Brown, C. T., Callahan, B. J., Caraballo-Rodríguez, A. M., Chase, J., … Caporaso, J. G. (2019). Reproducible, interactive, scalable and extensible microbiome data science using QIIME 2. Nature Biotechnology, 37(8), Article 8. https://doi.org/10.1038/s41587-019-0209-9
+Bourquin, M., Busi, S. B., Fodelianakis, S., Peter, H., Washburne, A., Kohler, T. J., Ezzat, L., Michoud, G., Wilmes, P., & Battin, T. J. (2022). The microbiome of cryospheric ecosystems. Nature Communications, 13(1), Article 1. https://doi.org/10.1038/s41467-022-30816-4
+Douglas, G. M., Maffei, V. J., Zaneveld, J. R., Yurgel, S. N., Brown, J. R., Taylor, C. M., Huttenhower, C., & Langille, M. G. I. (2020). PICRUSt2 for prediction of metagenome functions. Nature Biotechnology, 38(6), Article 6. https://doi.org/10.1038/s41587-020-0548-6
+Mongad, D. S., Chavan, N. S., Narwade, N. P., Dixit, K., Shouche, Y. S., & Dhotre, D. P. (2021). MicFunPred: A conserved approach to predict functional profiles from 16S rRNA gene sequence data. Genomics, 113(6), 3635–3643. https://doi.org/10.1016/j.ygeno.2021.08.016
+National Center for Biotechnology Information (NCBI)[Internet]. Bethesda (MD): National Library of Medicine (US), National Center for Biotechnology Information; [1988] – [cited 2023 Jul 13]. Available from: https://www.ncbi.nlm.nih.gov/
+Robeson, M. S., O’Rourke, D. R., Kaehler, B. D., Ziemski, M., Dillon, M. R., Foster, J. T., & Bokulich, N. A. (2020). RESCRIPt: Reproducible sequence taxonomy reference database management for the masses (p. 2020.10.05.326504). bioRxiv. https://doi.org/10.1101/2020.10.05.326504
+The UniProt Consortium. (2023). UniProt: The Universal Protein Knowledgebase in 2023. Nucleic Acids Research, 51(D1), D523–D531. https://doi.org/10.1093/nar/gkac1052
+Barrow Alaska https://www.ebi.ac.uk/ena/browser/view/PRJEB9043
+Catriona snow https://www.ebi.ac.uk/ena/browser/view/PRJEB9658
+Bihor Mountain ice caves: https://www.ncbi.nlm.nih.gov/bioproject/305850
+Central Yakutia https://www.ncbi.nlm.nih.gov/bioproject/PRJNA734507
+South East Iceland glaciers https://www.ncbi.nlm.nih.gov/bioproject/PRJNA678168
+Rhizosphere sample (comparison group): https://www.ncbi.nlm.nih.gov/bioproject/873723
+Sverdrup glacier: https://www.ncbi.nlm.nih.gov/sra/SRX18256802[accn]
+Greenland ice sheet: https://www.ncbi.nlm.nih.gov/sra/SRX6813832[accn]
+Storglaciaren https://www.ncbi.nlm.nih.gov/sra/ERX4489723[accn]
+Cryoconite https://www.ncbi.nlm.nih.gov/sra/DRX182771[accn]
+Villum station https://www.ncbi.nlm.nih.gov/sra/SRX6422141[accn]
+Giant hailstone metagenome https://www.ncbi.nlm.nih.gov/sra/SRX17718721[accn] single,
+New Zealand soil https://www.ncbi.nlm.nih.gov/sra/SRX828665[accn]
