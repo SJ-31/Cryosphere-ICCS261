@@ -287,14 +287,14 @@ prepare_abc_lfc <- function(abc_results, var, results_type, rank, wrong_tax) {
   # signifcant differences in log fold change
 }
 
-quartile_filter <- function(lfc_table) {
+quantile_filter <- function(lfc_table, cutoff) {
   # Filter log fold change so that sites above the 3rd and below the 1st quartile remain
-  lfc_stats <- lfc_table$lfc %>% summary()
-  lfc_q3 <- lfc_stats[["3rd Qu."]]
-  lfc_q1 <- lfc_stats[["1st Qu."]]
-  highs_lows <- lfc_table[lfc_table$lfc > lfc_q3 | lfc_table$lfc < lfc_q1, ]
+  upper <- lfc_table$lfc %>% quantile(1 - cutoff)
+  lower <- lfc_table$lfc %>% quantile(cutoff)
+  highs_lows <- lfc_table[lfc_table$lfc > upper | lfc_table$lfc < lower, ]
   return(highs_lows)
 }
+
 
 sum_by_site <- function(freq_table, id_key, id_col, unwanted) {
   summed <- sapply(names(id_key), function(x) {

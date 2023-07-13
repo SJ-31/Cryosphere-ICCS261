@@ -6,30 +6,30 @@ output:
     theme: cerulean
     higlight: tango
     fig_width: 20
-    fig_height: 8
+    fig_height: 10
     fig_caption: true
     df_print: paged
 ---
 ```{r echo=FALSE, results='hide', message=FALSE, comment=NA}
 source("./all_artifacts.r")
 ```
-# Overview
+### Overview
 - Why study microorganisms in extreme environments? (extremophiles)
 TODO: Read up on why
   - Biotechnology applications
 
-## Questions
+#### Questions
 - 1) How do the different habitats differ by taxonomic and functional diversity?
 - 2) What taxa and functions are most associated with cryospheric environments? Do these differ between habitats?
 - 3) Can we accurately classify what samples belong to which site using high-level taxonomic ranks?
 
-## Hypothesis
+#### Hypothesis
 - We will observe greater taxonomic diversity between sites than functional diversity
   - There is a limited number of adaptations that microorganisms can evolve to survive in cryospheric environments, so we should expect a significant degree of convergent evolution towards the same pathways
 
-# Pipeline
+### Pipeline
 
-## Overview
+#### Overview
 - The Nextflow pipeline used to process the reads first performs quality control, including trimming and contaminant removal.
   - Afterwards, it combines reads using a 99% similarity threshold into operational taxonomic units or OTUs. The idea is that because every otu is unique, each one represents an individual species
 ```{r comment=NA}
@@ -48,9 +48,9 @@ message(show)
   - Taxonomic classifications of each OTU,
   - Pathway frequency table
   - Rooted phylogenetic trees
-![workflow](./figures/workflow.png)
+![workflow](workflow.png)
 
-## Importing data from fastq
+##### Importing data from fastq
 Qiime2 uses a compressed type of file format called an 'Artifact' for its analyses. Artifacts have different semantic types e.g. `FeatureData[Sequence]`, `Phylogeny[Unrooted]` depending on the type of data they contain. To begin the analysis, the fastq files were imported into `FeatureData[SequencesWithQuality]` or `FeatureData[PairedEndSequencesWithQuality]` artifacts
 
 - Although all of these reads were prepared with Illumina devices, sequencing quality can vary between sequencing centres, meaning that each sample will likely need specific parameters for cleaning.
@@ -72,7 +72,7 @@ qiime tools import \
   --input-format SingleEndFastqManifestPhred33V2
 ```
 
-### Database preparation
+##### Database preparation
 - Two databases were obtained:
   - All annotated 16S rRNA from the NCBI ftp [website](https://ftp-ncbi-nlm-nih-gov.ejournal.mahidol.ac.th/blast/db/v5/)
   - Annotated 16S rRNA used by the tool [MicFunPred](https://github.com/microDM/MicFunPred)
@@ -140,11 +140,11 @@ with open('all_mappings.txt', 'r') as i:
 uniq.close
 ```
 
-# Diversity analyses
+### Diversity analyses
 - Diversity metrics describe the community composition of an area: the more diverse an area is, the higher the number of species and the more different each species is to aone another. They provide quantitative measures for site comparisons, rather than simply counting the number of species.
   - Alpha diversity describes the biodiversity within a single site, whilst beta diversity compares two sites directly
 
-## Alpha diversity
+#### Alpha diversity
 
 ```{r, comment=NA, message=FALSE, comment=NA}
 alpha <- get_artifact_data("./results/7-Diversity",
@@ -184,20 +184,20 @@ It's pretty clear that some sites have much lower evenness than others. Others, 
 
 ```{r, comment=NA}
 pi_evenness %>%
-  select(c("Barrow mountain high", "Barrow mountain low", "Bihor mountains", "Catriona snow")) %>%
+  select(all_of(c("Barrow mountain high", "Barrow mountain low", "Bihor mountains", "Catriona snow"))) %>%
   kruskal.test()
 ```
 
-## Beta diversity
+### Beta diversity
 Beta diversity quantifies the distance/dissimilarity between sites and is measured on a scale of 0 (identical) to 1 (completely different).
 
-###  But why use different metrics?
+####  But why use different metrics?
 - Besides total species counts, two other sets of information can be used in the diversity calculation
   - **Abundance:** the individual counts for each species e.g. 100 observations of species A, 20 of B
   - **Phylogenetic distance:** the evolutionary relationships between each species
 - Metrics differ by the information they include in their calculation
 
-#### But what is phylogenetic distance?
+##### But what is phylogenetic distance?
 ```{r, comment=NA}
 otu_freqs <- lapply(get_artifact_data("./results/2-OTUs", id_key, "otuFreqs"), as.data.frame)
 fasttree <- get_artifact_data("./results/6-RootedTrees", id_key, "FastTree_RootedTree")
@@ -209,7 +209,7 @@ iqtree <- get_artifact_data("./results/6-RootedTrees", id_key, "IQTREE_RootedTre
 matched <- match(iqtree$GrI$tip.label, rownames(otu_freqs$GrI))
 freq_mapping <- otu_freqs$GrI[matched, ] %>%
   rowMeans() %>%
-  as.data.frame() %>%
+  as.data.frame() %>% # Replace the rownames with something readable
   `rownames<-`(seq_along(rownames(.)) %>% paste("OTU", ., sep = ""))
 iqtree$GrI$tip.label <- paste(rownames(freq_mapping), "freq =", freq_mapping[[1]])
 sample_tree <- iqtree$GrI %>%
@@ -221,11 +221,11 @@ sample_tree <- iqtree$GrI %>%
 sample_tree
 ```
 
-### Ordination
+##### Ordination
 Beta diversity calculations on multiple sites at once returns a distance matrix, where the first row and column are sites and entries are. The results can be visualized using a dimensionality reduction technique called principle coordinates analysis
 - The PcOA plots here were calculated directly with Qiime2 in an extension to the pipeline
 
-#### Import results and plot
+###### Import results and plot
 ```{r, comment=NA}
 beta <- get_artifact_data("./results/7-Diversity", list(Merged = NULL), extension = "", metric_list = beta_metrics)
 pcoa2D <- get_artifact_data("./results/8-Analysis", list(Merged = NULL),
@@ -254,9 +254,12 @@ Clustering in the Bray Curtis plot represents sites sharing many of the same spe
 - This implies that although some taxa are shared, the unique taxa are a evolutionary distant (essentially have very different DNA) from the shared ones.
 - Once we add weightings by abundance though, new clusters form, indicating there are many more common taxa within the groups than there are unique taxa.
   - Even partitioning sites by habitat type - glacier and permafrost, doesn't help
-- **Conclusion:** many of the sites share the same taxa, but the relationships between them differ
+- **Conclusions**
+  - Many of the sites share the same taxa, but their phylogenetic relationships differ significantly
+  - There is little overlap with the taxa in cryospheric and soil environments
+  - The Hailstone site is the most distinct, when considering distance phylogenetic distance
 
-#### What to choose?
+###### What to choose?
 ```{r, comment=NA}
 # Filter the sites
 keep <- c("ViS", "BrL", "BrH", "SvG")
@@ -275,7 +278,7 @@ adonis2(filter_wn ~ filtered_meta$Location)
 anosim(filter_wn, grouping = filtered_meta$Location)
 ```
 
-# Pathway analysis
+### Pathway analysis
 - A metabolic pathway is essentially a set of reactions operating together for a specific purpose, such as energy storage or producing a certain molecule.
   - These tell us about how the microorganisms are interacting with each other and their environment
   - Performing a beta diversity analysis on the set of metabolic pathways will reveal the functional similarity of each site
@@ -298,7 +301,6 @@ ko_all <- ko %>%
   replace(is.na(.), 0) %>%
   rel_abund(., pathway) %>% # Convert to relative abundances
   as_tibble()
-message(glue("There are {dim(ko_all)[1]} inferred pathways"))
 ko_xfunc <- ko_all %>% sites_x_func() # Transpose into sites x function format
 ko_all
 ```
@@ -306,7 +308,7 @@ ko_all
 The raw output tables here are the abundances of inferred biological pathways in each site based on the MetaCyc database.
 - PICRUSt2 works by first predicting important reactions for metabolism in the site (using KEGG Orthology (KO) and Enzyme Commission numbers (EC)) format, then using their abundances for pathway inference.
 
-### Compute distances, then plot
+#### Compute distances, then plot
 ```{r cols.print=4, rows.print=4, comment=NA, message=FALSE, comment=NA}
 # Bray-curtis distance
 bc_func <- vegdist(ko_xfunc, method = "bray")
@@ -336,10 +338,12 @@ func_compare <- ggarrange(pcoaja + labs(x = element_blank()), plot_ja_func, pcoa
 func_compare
 ```
 
-**Conclusion**: There is a high degree of pathway diversity between sites, and the most distinct are the Catriona snow and Greenland ice sites.
-- Again, the New Zealand soil site is clustered nearby with many other cryospheric sites
+**Conclusions**:
+- Sites differ more by pathway than they do by species
+  - Implies that there are a few unique species within each site with a specialized, unique lifestyles, resulting in multiple unique pathways
+- The most distinct are the Catriona snow and Greenland ice sites.
 
-# Taxonomic classifications
+### Taxonomic classifications
 For sample taxonomic classification, I will be trying out all three of the methods available in qiime2:
 ```{r cols.print=4, rows.print=4, comment=NA}
 blast <- lapply(get_artifact_data("./results/3-Classified", id_key, "BLAST_All"), parse_taxonomy)
@@ -353,10 +357,9 @@ sk_merged
 ```
 The sklearn classifier has a slightly better number of identifications so will be used for all any downstream analyses
 
+### Abundance visualizations
 
-# Abundance visualizations
-
-## Phyla
+#### Phyla
 ```{r cols.print=4, rows.print=4, comment=NA}
 all <- read_qza("./results/2-OTUs/Merged-otuFreqs.qza")$data
 sk_merged <- read_qza("./results/3-Classified/Merged-Sklearn.qza")$data %>% parse_taxonomy()
@@ -385,7 +388,7 @@ stacked <- tax_sum %>% ggplot(., aes(x = name, y = value, fill = identifier)) +
 stacked
 ```
 
-## Pathways
+#### Pathways
 ```{r cols.print=4, rows.print=4, comment=NA}
 shown_paths <- c(
   "CHLOROPHYLL-SYN", "GLYCOLYSIS", "TCA", "CALVIN-PWY",
@@ -402,13 +405,15 @@ heat_path <- path_sum %>% ggplot(., aes(x = name, y = identifier, fill = value))
 heat_path
 ```
 
-# Differential abundance analysis
-- Differential abundance anlaysis refers to quantitative methods for confidently identifying units(OTUs/pathways) that are more or less present between different samples.
+### Differential abundance analysis
+We know that the sites differ by the taxa and pathways present, but how do we quantify this?
+- Differential abundance anlaysis allows us to confidently identifying units(OTUs/pathways) that are more or less present between different samples.
   - Visualizations work well as an overview, but do not scale to the number of OTUs (especially at lower levels...)
   - Traditional statistical methods fail on compositional data (i.e. relative abundances)
 - There are many methods available for this, but **Analysis of Compositions of Microbiomes with Bias correction test (ANCOM-BC)**
 seems to be the newest and most robust
   - Notably, it accounts for biases related to sampling fraction and can provide p-values and confidence intervals for log-fold change for each unit
+- Differential abundance was performed against the different habitat
 
 ```{r cols.print=4, rows.print=4, message=FALSE, warning=FALSE, include=FALSE, comment=NA}
 # First we prepare the TreeSummarizedExperiment object
@@ -451,9 +456,10 @@ chosen_rank <- "Class"
 # Differentially abundant taxa between cryosphere types
 abc <- ancombc2(
   data = tse, assay_name = "counts", tax_level = chosen_rank,
-  fix_formula = var, group = var,
+  fix_formula = "Type", group = var,
   pairwise = TRUE
 )
+
 lfc <- prepare_abc_lfc(abc, "Type", "res_pair", chosen_rank, false_positives)
 # Test takes some time to run, so save results
 write.csv2(abc$res_pair, "./results/8-ANCOM-BC/all_taxon_res.csv", row.names = FALSE)
@@ -465,12 +471,12 @@ abc_paths <- ancombc2(
   data = tse_paths, assay_name = "counts", tax_level = "Species",
   fix_formula = "Type", pairwise = TRUE, group = "Type"
 )
-path_lfc <- prepare_abc_lfc(abc_paths, "Type", "res", NA, NA)
+path_lfc <- prepare_abc_lfc(abc_paths, "Type", "res_pair", NA, NA)
 write.csv2(abc_paths$res_pair, "./results/8-ANCOM-BC/all_path_res.csv", row.names = FALSE)
 write.csv2(path_lfc, "./results/8-ANCOM-BC/path_lfc.csv", row.names = FALSE)
 ```
 
-### Differentially abundant taxa between sites
+#### Differentially abundant Classes
 ```{r cols.print=4, rows.print=4, comment=NA}
 abc_taxon <- read.csv2("./results/8-ANCOM-BC/all_taxon_res.csv")
 taxon_all_counts <- abc_taxon %>%
@@ -479,32 +485,36 @@ taxon_all_counts <- abc_taxon %>%
   unique() %>%
   dim() # Collect counts of all taxa
 lfc <- read.csv2("./results/8-ANCOM-BC/taxon_lfc.csv")
+class_abund_count <- length(unique(lfc$taxon))
+abc_taxon %>% colnames
 
-percent_abund <- ((length(unique(lfc$taxon)) / taxon_all_counts[1]) %>% round(digits = 2)) * 100
-print(glue("Percent of differentially abundant classes: {percent_abund}%"))
-
-lfc <- lfc %>% quartile_filter()
-# We keep the taxa with the highest and lowest log-fold changes between the types
+lfc <- quantile_filter(lfc, 0.1)
+# We keep the taxa at the 90th and 10th percentiles of log-fold changes between the types
 tax_ids <- as.character(1:length(lfc$taxon))
 lfc$taxon <- paste(c(glue("{tax_ids}:")), lfc$taxon)
+lfc[lfc$name == "Other", ]$name <- "Other vs. Glacier"
+lfc[lfc$name == "Permafrost", ]$name <- "Permafrost vs. Glacier"
+# The test selects the refrence Type based on alphabetical order ("Glacier" in this case), so I renamed it for clarity
+lfc[grep("_", lfc$name), ]$name <- "Permafrost vs. Other"
 
 abc_plot <- abc_lfc_plot(lfc) + scale_fill_discrete(name = "Class") + labs(x = "Type") +
   geom_label(aes(label = tax_ids), label.size = 0.15,
     position = position_dodge(width = .9), show.legend = FALSE
   )
 
-most_abund <- lfc %>%
-  filter(lfc == max(lfc)) %>%
-  select(taxon)
-message(glue("The most abundant class is {most_abund}"))
 abc_taxon
 abc_plot
 ```
-The top three most abundant classes
-TODO: Talk about the most abundant classes and pathways
-KD4-96 is a uncharacterized class of the phylum Chloroflexi
 
-### Plotting pathways
+ANCOM-BC test returns p-values, so the results here are only the log-fold changes that are statistically significant
+- **Interpretation:** the x-axis shows the comparisons being made, while the y-axis is the log-fold change in the taxon represented by that bar
+
+**Highlights**
+- 66% of Classes (63 out of 96) were differentially abundant between sites
+  - *I specified a cutoff so that the graph only shows the 90th and 10th percentiles so there are actually more that weren't shown
+- Permafrost has a significantly lower amount of Cyanobacteria than both sites (bar 18 and bar 5), but higher levels of Desulfuromonadia in both
+
+#### Differentially abundant pathways
 ```{r cols.print=4, rows.print=4, comment=NA}
 all_path_lfc <- read.csv2("./results/8-ANCOM-BC/all_path_res.csv")
 path_lfc <- read.csv2("./results/8-ANCOM-BC/path_lfc.csv")
@@ -514,27 +524,32 @@ path_all_counts <- all_path_lfc %>%
   select(taxon) %>%
   unique() %>%
   dim()
-percent_abund <- ((length(unique(path_lfc$taxon)) / path_all_counts[1]) %>% round(digits = 2)) * 100
+pathway_abund_count <- length(unique(path_lfc$taxon))
+percent_abund <- (pathway_abund_count / path_all_counts[1]) %>% round(digits = 2) * 100
 
-print(glue("Percent of differentially abundant pathways: {percent_abund}"))
-path_lfc <- path_lfc %>% quartile_filter()
+path_lfc <- quantile_filter(path_lfc, cutoff = 0.05)
+# Because there are so many pathways, keep only the 95th and 5th percentile for log-fold change
 ids <- as.character(1:length(path_lfc$taxon))
 path_lfc$taxon <- paste(c(glue("{ids}:")), path_lfc$taxon)
+path_lfc[path_lfc$name == "Other", ]$name <- "Other vs. Glacier"
+path_lfc[path_lfc$name == "Permafrost", ]$name <- "Permafrost vs. Glacier"
+# The test selects the refrence Type based on alphabetical order ("Glacier" in this case), so I renamed it for clarity
+path_lfc[grep("_", path_lfc$name), ]$name <- "Permafrost vs. Other"
 
 abc_pathways <- abc_lfc_plot(path_lfc) +
   scale_fill_discrete(name = "Pathway") +
   geom_label(aes(label = ids), label.size = 0.15,
     position = position_dodge(width = .9), show.legend = FALSE
   )
-most_abund <- path_lfc %>%
-  filter(lfc == max(lfc)) %>%
-  select(taxon)
-message(glue("The most differentially abundant pathway is {most_abund}"))
 all_path_lfc
 abc_pathways
 ```
 
-### Interpretation
+**Highlights**
+- 52% of pathways (216 out of 419) were differentially abundant
+- Compared to Glacier sites, Permafrost has a higher abundance of the CENTBENZCOA pathway and the
+
+### Other results
 - ANCOMBC performs pairwise comparisons of the abundance of a given species in one sample vs in a another sample
 - It returns five metrics for each OTU:
   - Log fold change of the OTU
@@ -545,10 +560,11 @@ abc_pathways
 - The W value for the *i*th species is the number of times that the null hypothesis is rejected for that species _i_. We can simply interpret higher W values to mean that a species is more abundant than others.
   - W value also works in the opposite direction where negative values mean less abundance
 
-# Random forest for site prediction
+### Random forest for site prediction
+As an extension to one of the assignments, I wanted to build a model that predicts multiple classes
+- Habitat type ("Permafrost", "Glacier" or "Other") was the only variable that made sense for the dataset
+  - Predicting Location would have worked as well, but I didn't have enoguh samples from each
 - **Features:** relative abundances of each phyla
-  - Because it is a phylogenetic index, Faith's diversity is actually a combination of two features: number of species and evolutionary distance
-    - Faith uses branch length in its calculation
 
 ```{r cols.print=4, rows.print=4, comment=NA}
 bad_names <- ranks[grep("-", ranks$taxon), ]$taxon
@@ -578,7 +594,7 @@ phyla_train <- phyla_abund %>%
 num_features <- length(colnames(phyla_train))
 message(glue("Trained on {num_features} features"))
 
-## Train the random forest
+# Train the random forest
 set.seed(2002)
 preds <- sample(2, nrow(phyla_train), replace = TRUE, prob = c(0.7, 0.3))
 train <- phyla_train[preds == 1, ]
@@ -590,6 +606,5 @@ confusionMatrix(try, train$pred)
 varImpPlot(rf)
 ```
 
-# Conclusion
 
-# References
+### References
