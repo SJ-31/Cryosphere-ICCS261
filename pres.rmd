@@ -80,6 +80,7 @@ pcoawn <- plot_pcoa(pcoa2D_merged$wn, "Location") +
   labs(x = "PC1", y = element_blank(), title = "Weighted normalized Unifrac")
 
 pcoa_arrange <- ggarrange(pcoabc, pcoauu, pcoawn, ncol = 3, common.legend = TRUE, legend = "right")
+# Arrange plots
 pcoa_arrange
 ```
 
@@ -157,7 +158,7 @@ ranks <- merge_with_id(all, sk_merged, level = 2) %>%
   filter(!(is.na(taxon))) %>%
   group_by(taxon) %>%
   summarise(across(everything(), sum))
-# Collapse taxnomy into phyla
+# Collapse taxonomy into phyla
 
 not_bacteria <- c(
   "Arthropoda", "Nanoarchaeota", "Diatomea", "Altiarchaeota",
@@ -186,6 +187,7 @@ shown_paths <- c(
 )
 nice_paths <- ko_all %>%
   filter((grepl(paste(shown_paths, collapse = "|"), pathway)))
+# Familiar pathways
 path_sum <- sum_by_site(nice_paths, id_key, "pathway", NaN)
 heat_path <- path_sum %>% ggplot(., aes(x = name, y = identifier, fill = value)) +
   geom_tile() +
@@ -223,17 +225,18 @@ formatted_meta_paths <- metadata[match(colnames(paths), metadata$sample.id), ] %
   column_to_rownames(., var = "sample.id") %>%
   sample_data()
 phylo_path <- phyloseq(otu_table(paths, taxa_are_rows = TRUE), formatted_meta_paths)
+
 # All of this is necessary because the TSE object won't be
 #   created properly unless the indices of the rownames match precisely
-
 matched_tax <- sk_merged[match(rownames(otus), rownames(sk_merged)), ] %>%
   tax_table() %>%
-  `colnames<-`(tax_info)
+  `colnames<-`(tax_info) # Match the rownames of the taxa identifications with the frequency tables
 formatted_meta <- metadata[match(colnames(otus), metadata$sample.id), ] %>%
   `rownames<-`(NULL) %>%
   column_to_rownames(., var = "sample.id") %>%
   sample_data()
-rownames(otus) <- rownames(matched_tax)
+  # Match the metadata ids with frequency tables
+rownames(otus) <- rownames(matched_tax) # Rename ids
 my_phylo <- phyloseq(otu_table(otus, taxa_are_rows = TRUE), formatted_meta, matched_tax)
 
 tse <- mia::makeTreeSummarizedExperimentFromPhyloseq(my_phylo)
@@ -247,6 +250,7 @@ chosen_rank <- "Class"
 abc <- ancombc2(
   data = tse, assay_name = "counts", tax_level = chosen_rank,
   fix_formula = "Type", group = var,
+  # Fix formula specifies how to split the samples for comparison
   pairwise = TRUE
 )
 
@@ -360,6 +364,7 @@ phyla_abund <- ranks %>%
   select(!all_of((not_bacteria))) %>%
   rename_with(~"Marinimicrobia", "Marinimicrobia_(SAR406_clade)") %>%
   rename_with(~new_names, bad_names) %>%
+  # Remove and rename taxa
   dplyr::slice(-1) %>%
   rownames_to_column("pred") %>%
   mutate_at(.vars = c(1:length(colnames(.)))[-1], .funs = as.numeric) %>%

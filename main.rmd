@@ -14,6 +14,7 @@ output:
     toc_float: true
 ---
 ```{r echo=FALSE, results='hide', message=FALSE, comment=NA}
+# source the R script containing functions
 source("./all_artifacts.r")
 ```
 ### Overview

@@ -42,10 +42,11 @@ alpha_metrics <- list(
 )
 
 collapse_tax <- function(taxonomy, level) {
+  # Collapses taxonomy dataframe into a specified taxonomic rank
   ranks <- taxonomy %>%
     str_replace_all(".__", "") %>%
     str_split(";") %>%
-    unlist()
+    unlist() # The R list structure is actually like a dictionary so this funciton flattens it
   if (level > length(ranks)) {
     return(ranks[length(ranks)])
   } else {
@@ -74,6 +75,7 @@ get_artifact_data <- function(path, ids, extension, metric_list) {
   artifacts <- list()
   for (id in names(ids)) {
     if (missing(metric_list)) {
+      # glue is the equivalent of an F-string
       a_path <- glue("{path}/{id}-{extension}.qza")
       artifacts[[id]] <- read_qza(a_path)$data
     } else {
@@ -117,12 +119,13 @@ known_taxon <- function(row, taxonomy, level) {
 }
 
 combine_freqs <- function(freq_list, sum_by) {
-  # Combine frequency tables from different sites into one
+  # Combine frequency tables from different sites into one, summing up the frequencies
   combined <- bind_rows(freq_list) %>%
     arrange(.[["sum_by"]]) %>%
     group_by(sum_by) %>%
     summarise(across(everything(), sum)) %>%
     mutate_all(~ replace(., is.na(.), 0))
+  # replace na with 0
   return(combined)
 }
 
@@ -203,7 +206,7 @@ plot_pcoa <- function(pcoa, color_by, functions) {
       )) +
       geom_point(
         aes(shape = .data[["Type"]]),
-        size = 2,
+        size = 2, # Specifications for points
         stroke = 1
       )
       +
@@ -233,7 +236,7 @@ filter_meta <- function(metadata, keep) {
 
 sites_x_func <- function(picrust_tsv2) {
   # Reformats picrust's biom output files into a site x function dataframe,
-  #   compatible with vegan
+  #   compatible with vegan's vegdist function
   return(picrust_tsv2 %>%
     as.data.frame() %>%
     t() %>%
@@ -252,7 +255,7 @@ ancombc_select <- function(ancombc_results, result, tax_level, unwanted) {
   # Select results type from ancombc results object in long format
   select <- ancombc_results %>%
     select(c(1, grep(result, colnames(ancombc_results))))
-  if (!(is.na(tax_level)) || !(is.na(unwanted))) {
+  if (!(is.na(tax_level)) || !(is.na(unwanted))) { # Select the specified taxonomic level and ignore unwanted
     select <- select %>%
       filter(grepl(tax_level, .data$taxon)) %>%
       filter(!(grepl(paste(unwanted, collapse = "|"), .data$taxon)))
@@ -297,6 +300,7 @@ quantile_filter <- function(lfc_table, cutoff) {
 
 
 sum_by_site <- function(freq_table, id_key, id_col, unwanted) {
+  # Add up frequencies for different samples of the same site
   summed <- sapply(names(id_key), function(x) {
     rowSums(freq_table[, grep(x, colnames(freq_table)), drop = FALSE])
   }) %>%
@@ -304,6 +308,7 @@ sum_by_site <- function(freq_table, id_key, id_col, unwanted) {
     mutate(identifier = freq_table[[id_col]]) %>%
     relocate(identifier) %>%
     filter(!(grepl("[0-9]", identifier))) %>%
+    # Remove uncharacterized taxa
     filter(!(grepl(paste(unwanted, collapse = "|"), identifier))) %>%
     rel_abund(., identifier) %>%
     pivot_longer(., -identifier) %>%
@@ -329,26 +334,4 @@ abc_lfc_plot <- function(abc_lfc) {
     ) +
     labs(x = "Site", y = "Log fold change")
   return(plot)
-}
-
-ko_to_div <- function(pathway_df) {
-  diversity <- pathway_df %>%
-    t() %>%
-    as.data.frame() %>%
-    `colnames<-`(.[1, ]) %>%
-    slice(-1) %>%
-    mutate_all(as.numeric) %>%
-    diversity(index = "shannon") %>%
-    as.data.frame() %>%
-    rename("shannon" = ".") %>%
-    mutate(name = rownames(.))
-  diversity$name <- diversity$name %>%
-    lapply(., gsub, pattern = "[^0-9]", replacement = "") %>%
-    unlist() %>%
-    as.numeric()
-  diversity <- diversity %>%
-    arrange(name) %>%
-    rownames_to_column() %>%
-    rename("site" = "rowname")
-  return(as.data.frame(diversity))
 }
